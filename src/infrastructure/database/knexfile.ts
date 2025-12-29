@@ -10,7 +10,7 @@ const config: { [key: string]: Knex.Config } = {
       password: process.env.DB_PASSWORD || 'pass',
     },
     migrations: {
-      directory: './src/infrastructure/database/migrations',
+      directory: './migrations',
       extension: 'ts',
     },
   },

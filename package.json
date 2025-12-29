@@ -20,7 +20,11 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:migrate": "knex migrate:latest --knexfile knexfile.ts",
     "db:rollback": "knex migrate:rollback --knexfile knexfile.ts",
-    "db:seed": "knex seed:run --knexfile knexfile.ts"
+    "db:seed": "knex seed:run --knexfile knexfile.ts",
+    "migration:run": "npx knex migrate:latest --knexfile src/infrastructure/database/knexfile.ts",
+    "migration:rollback": "npx knex migrate:rollback --knexfile src/infrastructure/database/knexfile.ts",
+    "migration:make": "npx knex migrate:make --knexfile src/infrastructure/database/knexfile.ts -x ts",
+    "migration:status": "npx knex migrate:list --knexfile src/infrastructure/database/knexfile.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
