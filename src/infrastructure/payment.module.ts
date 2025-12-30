@@ -6,6 +6,7 @@ import { UpdateStatusUseCase } from '../application/use-cases/payment/update-sta
 import { KnexPaymentRepository } from './repositories/knex-payment.repository';
 import { MercadoPagoGateway } from './gateways/mercado-pago/mercado-pago.gateway';
 import { DatabaseService } from './database/database.service';
+import { GetPaymentByIdUseCase } from 'src/application/use-cases/payment/get-payment/get-payment-by-id.use-case';
 
 @Module({
     controllers: [PaymentController],
@@ -13,6 +14,7 @@ import { DatabaseService } from './database/database.service';
         CreatePaymentUseCase,
         UpdateStatusUseCase,
         ListPaymentsUseCase,
+        GetPaymentByIdUseCase,
         {
             provide: 'PaymentRepository',
             useClass: KnexPaymentRepository,

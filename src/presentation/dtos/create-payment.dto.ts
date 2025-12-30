@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsEnum, IsNotEmpty, Length } from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsNotEmpty, Length, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PaymentMethod } from '../../domain/entities/payment.entity';
 
@@ -16,6 +16,7 @@ export class CreatePaymentDto {
 
   @IsNumber()
   @IsNotEmpty()
+  @Min(0.01)
   amount: number;
 
   @IsEnum(PaymentMethod, {
