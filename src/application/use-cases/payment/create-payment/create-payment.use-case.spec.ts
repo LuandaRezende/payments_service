@@ -1,5 +1,6 @@
 import { CreatePaymentUseCase } from './create-payment.use-case';
 import { PaymentMethod, PaymentStatus } from '../../../../domain/entities/payment.entity';
+import { BadRequestException } from '@nestjs/common';
 
 describe('CreatePaymentUseCase', () => {
     let useCase: CreatePaymentUseCase;
@@ -85,7 +86,7 @@ describe('CreatePaymentUseCase', () => {
             cpf: dto.cpf,
             amount: dto.amount,
             description: dto.description,
-            paymentMethod: PaymentMethod.CREDIT_CARD, 
+            paymentMethod: PaymentMethod.CREDIT_CARD,
             status: PaymentStatus.PENDING,
             createdAt: new Date(),
         });
@@ -93,5 +94,28 @@ describe('CreatePaymentUseCase', () => {
         await useCase.execute(dto);
 
         expect(paymentProviderMock.createPreference).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw InternalServerError if repository fails', async () => {
+        const dto = {
+            cpf: '76187209087',
+            amount: 100,
+            description: 'Test Error',
+            paymentMethod: PaymentMethod.PIX,
+        };
+
+        repositoryMock.save.mockRejectedValue(new Error('Persistence Error'));
+
+        await expect(useCase.execute(dto)).rejects.toThrow();
+    });
+
+    it('should throw BadRequestException if paymentMethod is missing', async () => {
+        const dto = {
+            cpf: '76187209087',
+            amount: 100,
+            description: 'Test',
+        };
+
+        await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
     });
 });

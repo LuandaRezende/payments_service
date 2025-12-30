@@ -122,5 +122,74 @@ describe('UpdateStatusUseCase', () => {
             const result = await useCase.execute(mpId);
             expect(result.status).toBe(PaymentStatus.PENDING);
         });
+
+        it('should throw InternalServerError when an unexpected error occurs', async () => {
+            const id = 'any-id';
+
+            repositoryMock.findById.mockRejectedValue(new Error('Unexpected Database Crash'));
+
+            await expect(useCase.execute(id, PaymentStatus.PAID))
+                .rejects
+                .toThrow();
+        });
+
+        it('should throw an error when an unexpected error occurs during update', async () => {
+            const id = 'any-id';
+
+            repositoryMock.findById.mockResolvedValue({
+                id,
+                status: PaymentStatus.PENDING
+            });
+
+            repositoryMock.updateStatus.mockRejectedValue(new Error('Database failure'));
+
+            await expect(useCase.execute(id, PaymentStatus.PAID))
+                .rejects
+                .toThrow('Database failure');
+        });
+
+        it('should return the correct object after a successful webhook update', async () => {
+            const mpId = 'mp-123';
+            const internalId = 'internal-uuid';
+
+            paymentProviderMock.getPaymentDetails.mockResolvedValue({
+                status: 'approved',
+                external_reference: internalId,
+            });
+
+            repositoryMock.findById.mockResolvedValue({
+                id: internalId,
+                status: PaymentStatus.PENDING
+            });
+
+            const result = await useCase.execute(mpId);
+
+            expect(result).toEqual({ id: internalId, status: PaymentStatus.PAID });
+            expect(repositoryMock.updateStatus).toHaveBeenCalledWith(internalId, PaymentStatus.PAID);
+        });
+    });
+
+    it('should map "pending" to PaymentStatus.PENDING', async () => {
+        const mpId = 'mp-123';
+        const internalId = 'internal-id';
+        paymentProviderMock.getPaymentDetails.mockResolvedValue({
+            status: 'pending',
+            external_reference: internalId,
+        });
+        repositoryMock.findById.mockResolvedValue({ id: internalId });
+
+        const result = await useCase.execute(mpId);
+        expect(result.status).toBe(PaymentStatus.PENDING);
+    });
+
+    it('should throw an error if updateStatus fails (final branch)', async () => {
+        const id = 'any-id';
+        repositoryMock.findById.mockResolvedValue({ id, status: PaymentStatus.PENDING });
+
+        repositoryMock.updateStatus.mockRejectedValue(new Error('Final operation failed'));
+
+        await expect(useCase.execute(id, PaymentStatus.PAID))
+            .rejects
+            .toThrow('Final operation failed');
     });
 });
