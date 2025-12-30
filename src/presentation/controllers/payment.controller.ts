@@ -37,8 +37,10 @@ export class PaymentController {
 
     @Post('webhook')
     async handleWebhook(@Body() body: any, @Query('topic') topic: string) {
-        if (topic === 'payment' || body.type === 'payment') {
-            const resourceId = body.data?.id || body.resource;
+        const resourceId = body.data?.id || body.id;
+        const actualTopic = topic || body.type;
+
+        if (actualTopic === 'payment') {
             await this.updateStatusUseCase.execute(resourceId);
         }
 
