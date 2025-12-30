@@ -5,7 +5,7 @@ import { PaymentMethod, PaymentStatus } from '../../../../domain/entities/paymen
 @Injectable()
 export class ListPaymentsUseCase {
   constructor(
-    @Inject('IPaymentRepository')
+    @Inject('PaymentRepository')
     private readonly paymentRepository: IPaymentRepository,
   ) {}
 

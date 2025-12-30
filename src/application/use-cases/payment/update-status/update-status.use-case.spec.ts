@@ -1,48 +1,60 @@
-import { PaymentStatus } from '../../../../domain/entities/payment.entity';
 import { UpdateStatusUseCase } from './update-status.use-case';
+import { PaymentStatus } from '../../../../domain/entities/payment.entity';
 import { NotFoundException } from '@nestjs/common';
 
 describe('UpdateStatusUseCase', () => {
   let useCase: UpdateStatusUseCase;
   let repositoryMock: any;
+  let paymentProviderMock: any;
 
   beforeEach(() => {
-    repositoryMock = { 
-      findById: jest.fn().mockResolvedValue({ id: '1', status: 'PENDING' }),
-      updateStatus: jest.fn().mockResolvedValue(true) 
+    repositoryMock = {
+      findById: jest.fn(),
+      updateStatus: jest.fn(),
     };
-    useCase = new UpdateStatusUseCase(repositoryMock);
+    paymentProviderMock = {
+      getPaymentDetails: jest.fn(),
+    };
+    useCase = new UpdateStatusUseCase(repositoryMock, paymentProviderMock);
   });
 
-  it('should successfully update the status', async () => {
+  it('should successfully update the status manually', async () => {
     const id = 'existing-id';
-    // Simula que o pagamento existe
-    repositoryMock.findById.mockResolvedValue({ id, status: PaymentStatus.PENDING });
-    repositoryMock.updateStatus.mockResolvedValue(true);
+    const status = PaymentStatus.PAID;
 
-    await useCase.execute(id, PaymentStatus.PAID);
+    const result = await useCase.execute(id, status);
 
-    expect(repositoryMock.findById).toHaveBeenCalledWith(id);
-    expect(repositoryMock.updateStatus).toHaveBeenCalledWith(id, PaymentStatus.PAID);
+    expect(repositoryMock.updateStatus).toHaveBeenCalledWith(id, status);
+    expect(result.status).toBe(status);
   });
 
-  it('should throw NotFoundException if the payment does not exist', async () => {
+  it('should update status via webhook and check if payment exists', async () => {
+    const externalId = 'mp-123';
+    
+    paymentProviderMock.getPaymentDetails.mockResolvedValue({
+      status: 'approved',
+      external_reference: 'internal-id',
+    });
+
     repositoryMock.findById.mockResolvedValue(null);
 
     await expect(
-      useCase.execute('invalid-id', PaymentStatus.PAID)
+      useCase.execute(externalId) 
     ).rejects.toThrow(NotFoundException);
-
-    // Garante que o updateStatus NÃO foi chamado se não encontrou o ID
-    expect(repositoryMock.updateStatus).not.toHaveBeenCalled();
   });
 
-  it('should propagate errors if updateStatus fails', async () => {
-    repositoryMock.findById.mockResolvedValue({ id: '1' });
-    repositoryMock.updateStatus.mockRejectedValue(new Error('Writing error'));
+  it('should update status to PAID when Mercado Pago approves', async () => {
+    const externalId = 'mp-123';
+    
+    paymentProviderMock.getPaymentDetails.mockResolvedValue({
+      status: 'approved',
+      external_reference: 'internal-id',
+    });
+    
+    repositoryMock.findById.mockResolvedValue({ id: 'internal-id' });
 
-    await expect(
-      useCase.execute('1', PaymentStatus.PAID)
-    ).rejects.toThrow('Writing error');
+    await useCase.execute(externalId);
+
+    expect(repositoryMock.updateStatus).toHaveBeenCalledWith('internal-id', PaymentStatus.PAID);
   });
 });

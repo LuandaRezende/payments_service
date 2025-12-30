@@ -7,31 +7,41 @@ import { PaymentMethod, PaymentStatus } from '../../domain/entities/payment.enti
 
 @Controller('api/payments')
 export class PaymentController {
-  constructor(
-    private readonly createUseCase: CreatePaymentUseCase,
-    private readonly listUseCase: ListPaymentsUseCase,
-    private readonly updateStatusUseCase: UpdateStatusUseCase,
-  ) {}
+    constructor(
+        private readonly createUseCase: CreatePaymentUseCase,
+        private readonly listUseCase: ListPaymentsUseCase,
+        private readonly updateStatusUseCase: UpdateStatusUseCase,
+    ) { }
 
-  @Post()
-  async create(@Body() dto: CreatePaymentDto) {
-    return await this.createUseCase.execute(dto);
-  }
+    @Post()
+    async create(@Body() dto: CreatePaymentDto) {
+        return await this.createUseCase.execute(dto);
+    }
 
-  @Get()
-  async findAll(
-    @Query('cpf') cpf?: string,
-    @Query('method') method?: PaymentMethod,
-    @Query('status') status?: PaymentStatus,
-  ) {
-    return await this.listUseCase.execute({ cpf, method, status });
-  }
+    @Get()
+    async findAll(
+        @Query('cpf') cpf?: string,
+        @Query('method') method?: PaymentMethod,
+        @Query('status') status?: PaymentStatus,
+    ) {
+        return await this.listUseCase.execute({ cpf, method, status });
+    }
 
-  @Patch(':id/status')
-  async updateStatus(
-    @Param('id') id: string,
-    @Body('status') status: PaymentStatus,
-  ) {
-    return await this.updateStatusUseCase.execute(id, status);
-  }
+    @Patch(':id/status')
+    async updateStatus(
+        @Param('id') id: string,
+        @Body('status') status: PaymentStatus,
+    ) {
+        return await this.updateStatusUseCase.execute(id, status);
+    }
+
+    @Post('webhook')
+    async handleWebhook(@Body() body: any, @Query('topic') topic: string) {
+        if (topic === 'payment' || body.type === 'payment') {
+            const resourceId = body.data?.id || body.resource;
+            await this.updateStatusUseCase.execute(resourceId);
+        }
+
+        return { received: true };
+    }
 }

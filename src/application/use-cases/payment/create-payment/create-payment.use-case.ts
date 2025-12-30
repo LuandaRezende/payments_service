@@ -1,22 +1,40 @@
-// src/application/use-cases/create-payment.use-case.ts
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { Payment, PaymentMethod } from '../../../../domain/entities/payment.entity';
+import { Inject, Injectable, BadRequestException } from '@nestjs/common';
+import { Payment, PaymentMethod, PaymentStatus } from '../../../../domain/entities/payment.entity';
+import type { PaymentProvider } from '../../../../domain/gateways/mercado-pago/payment-provider.interface';
 import type { IPaymentRepository } from '../../../../domain/repositories/payment.repository.interface';
 
 @Injectable()
 export class CreatePaymentUseCase {
   constructor(
-    @Inject('IPaymentRepository')
-    private readonly paymentRepository: IPaymentRepository,
-  ) { }
+    @Inject('PaymentRepository')
+    private readonly repository: IPaymentRepository,
 
-  async execute(input: { cpf: string; description: string; amount: number; paymentMethod: PaymentMethod }) {
-    try {
-      const payment = Payment.create(input);
-      await this.paymentRepository.save(payment);
-      return payment;
-    } catch (error) {
-      throw new BadRequestException(error.message);
+    @Inject('PaymentProvider')
+    private readonly paymentProvider: PaymentProvider,
+  ) {}
+
+  async execute(dto: any) {
+    if (!dto.paymentMethod) {
+      throw new BadRequestException('Payment method is required');
     }
+
+    const payment = Payment.create(dto);
+
+    const savedPayment = await this.repository.save(payment);
+
+    if (
+      savedPayment.paymentMethod === PaymentMethod.CREDIT_CARD ||
+      savedPayment.paymentMethod === PaymentMethod.PIX
+    ) {
+      const preference = await this.paymentProvider.createPreference(savedPayment);
+
+      return {
+        ...savedPayment,
+        checkoutUrl: preference.init_point,
+        external_reference: preference.external_reference,
+      };
+    }
+
+    return savedPayment;
   }
 }

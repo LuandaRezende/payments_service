@@ -2,17 +2,16 @@ import { Module } from '@nestjs/common';
 import { KnexModule } from 'nest-knexjs';
 import { PaymentModule } from './infrastructure/payment.module';
 import knexConfig from './infrastructure/database/knexfile'; 
+import { PaymentController } from './presentation/controllers/payment.controller';
 
 @Module({
   imports: [
-    // Configuração Global do Banco
     KnexModule.forRoot({
-      config: knexConfig.development,
+      config: process.env.NODE_ENV === 'test' ? knexConfig.test : knexConfig.development,
     }),
-    // Seu módulo de negócio
     PaymentModule,
   ],
-  controllers: [],
+  controllers: [PaymentController],
   providers: [],
 })
 export class AppModule {}
