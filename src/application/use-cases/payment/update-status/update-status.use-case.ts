@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
-import { PaymentStatus } from '../../domain/entities/payment.entity';
+import type { IPaymentRepository } from '../../../../domain/repositories/payment.repository.interface';
+import { PaymentStatus } from '../../../../domain/entities/payment.entity';
 
 @Injectable()
 export class UpdateStatusUseCase {

@@ -1,7 +1,7 @@
 // src/application/use-cases/create-payment.use-case.ts
 import { Inject, Injectable } from '@nestjs/common';
-import { Payment, PaymentMethod } from '../../domain/entities/payment.entity';
-import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
+import { Payment, PaymentMethod } from '../../../../domain/entities/payment.entity';
+import type { IPaymentRepository } from '../../../../domain/repositories/payment.repository.interface';
 
 @Injectable()
 export class CreatePaymentUseCase {

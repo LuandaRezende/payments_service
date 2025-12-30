@@ -1,7 +1,7 @@
 import { Body, Controller, Post, Get, Query, Patch, Param } from '@nestjs/common';
-import { CreatePaymentUseCase } from '../../application/use-cases/create-payment.use-case';
-import { ListPaymentsUseCase } from '../../application/use-cases/list-payments.use-case';
-import { UpdateStatusUseCase } from '../../application/use-cases/update-status.use-case';
+import { CreatePaymentUseCase } from '../../application/use-cases/payment/create-payment/create-payment.use-case';
+import { ListPaymentsUseCase } from '../../application/use-cases/payment/list-payment/list-payments.use-case';
+import { UpdateStatusUseCase } from '../../application/use-cases/payment/update-status/update-status.use-case';
 import { CreatePaymentDto } from '../dtos/create-payment.dto';
 import { PaymentMethod, PaymentStatus } from '../../domain/entities/payment.entity';
 
