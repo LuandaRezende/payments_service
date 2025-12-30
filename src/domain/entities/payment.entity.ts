@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import { cpf as cpfValidator } from 'cpf-cnpj-validator';
 
 export enum PaymentMethod {
   PIX = 'PIX',
@@ -20,7 +21,24 @@ export class Payment {
     public paymentMethod: PaymentMethod,
     public status: PaymentStatus,
     public createdAt: Date,
-  ) {}
+  ) {
+    this.cpf = cpfValidator.strip(this.cpf);
+    this.validate();
+  }
+
+  private validate() {
+    if (this.amount <= 0) {
+      throw new Error('O valor do pagamento deve ser maior que zero');
+    }
+
+    if (!cpfValidator.isValid(this.cpf)) {
+      throw new Error('CPF informado é inválido');
+    }
+
+    if (!this.description || this.description.trim().length === 0) {
+      throw new Error('A descrição é obrigatória');
+    }
+  }
 
   static create(props: Omit<Payment, 'id' | 'status' | 'createdAt'>): Payment {
     return new Payment(
@@ -29,7 +47,7 @@ export class Payment {
       props.description,
       props.amount,
       props.paymentMethod,
-      PaymentStatus.PENDING, 
+      PaymentStatus.PENDING,
       new Date(),
     );
   }
