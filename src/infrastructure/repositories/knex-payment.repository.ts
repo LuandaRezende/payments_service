@@ -46,17 +46,8 @@ export class KnexPaymentRepository implements IPaymentRepository {
   async search(filters: { cpf?: string; method?: PaymentMethod; status?: PaymentStatus }): Promise<Payment[]> {
     const query = this.knex(this.tableName);
 
-    if (filters.cpf) {
-      query.where('cpf', filters.cpf);
-    }
-
-    if (filters.method) {
-      query.where('payment_method', filters.method);
-    }
-
-    if (filters.status) {
-      query.where('status', filters.status);
-    }
+    if (filters.cpf) query.where({ cpf: filters.cpf });
+    if (filters.status) query.where({ status: filters.status });
 
     const rows = await query;
 

@@ -12,7 +12,6 @@ import { KnexPaymentRepository } from './repositories/knex-payment.repository';
     ListPaymentsUseCase,
     UpdateStatusUseCase,
     {
-      // Vinculamos a Interface (Token) à Implementação Concreta
       provide: 'IPaymentRepository',
       useClass: KnexPaymentRepository,
     },
