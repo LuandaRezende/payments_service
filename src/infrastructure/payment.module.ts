@@ -25,6 +25,6 @@ import { GetPaymentByIdUseCase } from 'src/application/use-cases/payment/get-pay
         },
         DatabaseService
     ],
-    exports: [CreatePaymentUseCase, UpdateStatusUseCase, ListPaymentsUseCase, 'PaymentRepository'],
+    exports: [CreatePaymentUseCase, UpdateStatusUseCase, ListPaymentsUseCase, 'PaymentRepository', GetPaymentByIdUseCase],
 })
 export class PaymentModule { }
