@@ -1,26 +1,21 @@
-import { IsString, IsNumber, IsEnum, IsNotEmpty, Length, Min } from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsNotEmpty, Length, Min, MinLength, IsPositive } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PaymentMethod } from '../../domain/entities/payment.entity';
 
 export class CreatePaymentDto {
   @IsString()
   @IsNotEmpty()
-  @Length(11, 11, { message: 'CPF deve ter exatamente 11 dígitos' })
-  @Transform(({ value }) => value.replace(/\D/g, '')) 
+  @MinLength(11, { message: 'CPF must be at least 11 characters' })
   cpf: string;
+
+  @IsNumber()
+  @IsPositive({ message: 'Amount must be greater than zero' })
+  amount: number;
 
   @IsString()
   @IsNotEmpty()
-  @Transform(({ value }) => value.trim()) 
   description: string;
 
-  @IsNumber()
-  @IsNotEmpty()
-  @Min(0.01)
-  amount: number;
-
-  @IsEnum(PaymentMethod, {
-    message: 'Método de pagamento deve ser PIX ou CREDIT_CARD',
-  })
+  @IsEnum(PaymentMethod, { message: 'Invalid payment method. Use PIX or CREDIT_CARD' })
   paymentMethod: PaymentMethod;
 }
