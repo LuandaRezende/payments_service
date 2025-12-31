@@ -1,10 +1,12 @@
-import { Body, Controller, Post, Get, Query, Patch, Param } from '@nestjs/common';
+import { Body, Controller, Post, Get, Query, Patch, Param, Put, HttpCode, Delete } from '@nestjs/common';
 import { CreatePaymentUseCase } from '../../application/use-cases/payment/create-payment/create-payment.use-case';
 import { ListPaymentsUseCase } from '../../application/use-cases/payment/list-payment/list-payments.use-case';
 import { UpdateStatusUseCase } from '../../application/use-cases/payment/update-status/update-status.use-case';
+import { GetPaymentByIdUseCase } from '../../application/use-cases/payment/get-payment/get-payment-by-id.use-case';
+import { DeletePaymentUseCase } from '../../application/use-cases/payment/delete-payment/delete-payment.use-case';
 import { CreatePaymentDto } from '../dtos/create-payment.dto';
 import { PaymentMethod, PaymentStatus } from '../../domain/entities/payment.entity';
-import { GetPaymentByIdUseCase } from 'src/application/use-cases/payment/get-payment/get-payment-by-id.use-case';
+
 
 @Controller('api/payment')
 export class PaymentController {
@@ -13,6 +15,7 @@ export class PaymentController {
         private readonly listUseCase: ListPaymentsUseCase,
         private readonly updateStatusUseCase: UpdateStatusUseCase,
         private readonly getPaymentByIdUseCase: GetPaymentByIdUseCase,
+        private readonly deleteUseCase: DeletePaymentUseCase,
     ) { }
 
     @Post()
@@ -22,7 +25,7 @@ export class PaymentController {
 
     @Get(':id')
     async findOne(@Param('id') id: string) {
-      return await this.getPaymentByIdUseCase.execute(id);
+        return await this.getPaymentByIdUseCase.execute(id);
     }
 
     @Get()
@@ -34,12 +37,18 @@ export class PaymentController {
         return await this.listUseCase.execute({ cpf, method, status });
     }
 
-    @Patch(':id/status')
-    async updateStatus(
+    @Put(':id')
+    async update(
         @Param('id') id: string,
         @Body('status') status: PaymentStatus,
     ) {
         return await this.updateStatusUseCase.execute(id, status);
+    }
+
+    @Delete(':id')
+    @HttpCode(204)
+    async remove(@Param('id') id: string) {
+        return await this.deleteUseCase.execute(id);
     }
 
     @Post('webhook')

@@ -1,67 +1,51 @@
 import { Injectable } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectConnection } from 'nest-knexjs';
-import { Payment, PaymentMethod, PaymentStatus } from '../../domain/entities/payment.entity';
 import { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
+import { Payment, PaymentStatus, PaymentMethod } from '../../domain/entities/payment.entity';
 
 @Injectable()
 export class KnexPaymentRepository implements IPaymentRepository {
-    private readonly tableName = 'payments';
+  constructor(@InjectConnection() private readonly knex: Knex) {}
 
-    constructor(@InjectConnection() private readonly knex: Knex) { }
+  async register(payment: Payment): Promise<Payment> {
+    await this.knex('payments').insert({
+      id: payment.id,
+      cpf: payment.cpf,
+      amount: payment.amount,
+      description: payment.description,
+      status: payment.status,
+      payment_method: payment.paymentMethod,
+    });
+    return payment;
+  }
 
-    async save(payment: Payment): Promise<Payment> {
-        await this.knex(this.tableName).insert({
-            id: payment.id,
-            cpf: payment.cpf,
-            description: payment.description,
-            amount: payment.amount,
-            payment_method: payment.paymentMethod,
-            status: payment.status,
-            created_at: payment.createdAt,
-        });
+  async findById(id: string): Promise<Payment | null> {
+    const row = await this.knex('payments').where({ id }).first();
+    if (!row) return null;
+    return this.mapToEntity(row);
+  }
 
-        return payment;
-    }
+  async findByFilters(filters: { cpf?: string; method?: PaymentMethod; status?: PaymentStatus }): Promise<Payment[]> {
+    const query = this.knex('payments');
 
+    if (filters.cpf) query.where('cpf', filters.cpf);
+    if (filters.method) query.where('method', filters.method);
+    if (filters.status) query.where('status', filters.status);
 
-    async findById(id: string): Promise<Payment | null> {
-        const row = await this.knex(this.tableName).where({ id }).first();
-        if (!row) return null;
+    const rows = await query;
+    return rows.map(row => this.mapToEntity(row));
+  }
 
-        return new Payment(
-            row.id,
-            row.cpf,
-            row.description,
-            Number(row.amount),
-            row.payment_method as PaymentMethod,
-            row.status as PaymentStatus,
-            row.created_at,
-        );
-    }
+  async updateStatus(id: string, status: PaymentStatus): Promise<void> {
+    await this.knex('payments').where({ id }).update({ status });
+  }
 
-    async updateStatus(id: string, status: PaymentStatus): Promise<void> {
-        await this.knex(this.tableName)
-            .where({ id })
-            .update({ status });
-    }
+  async remove(id: string): Promise<void> {
+    await this.knex('payments').where({ id }).del();
+  }
 
-    async search(filters: { cpf?: string; method?: PaymentMethod; status?: PaymentStatus }): Promise<Payment[]> {
-        const query = this.knex(this.tableName);
-
-        if (filters.cpf) query.where({ cpf: filters.cpf });
-        if (filters.status) query.where({ status: filters.status });
-
-        const rows = await query;
-
-        return rows.map((row) => new Payment(
-            row.id,
-            row.cpf,
-            row.description,
-            Number(row.amount),
-            row.payment_method as PaymentMethod,
-            row.status as PaymentStatus,
-            row.created_at,
-        ));
-    }
+  private mapToEntity(row: any): Payment {
+    return Payment.create(row); 
+  }
 }

@@ -6,7 +6,7 @@ describe('CreatePaymentUseCase', () => {
     let useCase: CreatePaymentUseCase;
 
     let repositoryMock: {
-        save: jest.Mock;
+        register: jest.Mock;
     };
 
     let paymentProviderMock: {
@@ -15,7 +15,7 @@ describe('CreatePaymentUseCase', () => {
 
     beforeEach(() => {
         repositoryMock = {
-            save: jest.fn(),
+            register: jest.fn(),
         };
 
         paymentProviderMock = {
@@ -27,7 +27,7 @@ describe('CreatePaymentUseCase', () => {
             external_reference: '1',
         });
 
-        repositoryMock.save.mockResolvedValue({
+        repositoryMock.register.mockResolvedValue({
             id: '1',
             status: PaymentStatus.PENDING,
         });
@@ -46,7 +46,7 @@ describe('CreatePaymentUseCase', () => {
             paymentMethod: PaymentMethod.PIX,
         };
 
-        repositoryMock.save.mockResolvedValue({
+        repositoryMock.register.mockResolvedValue({
             id: '1',
             ...dto,
             status: PaymentStatus.PENDING,
@@ -70,7 +70,7 @@ describe('CreatePaymentUseCase', () => {
 
         expect(result).toBeDefined();
         expect(result.status).toBe(PaymentStatus.PENDING);
-        expect(repositoryMock.save).toHaveBeenCalledTimes(1);
+        expect(repositoryMock.register).toHaveBeenCalledTimes(1);
     });
 
     it('should call payment provider when payment method is CREDIT_CARD', async () => {
@@ -81,7 +81,7 @@ describe('CreatePaymentUseCase', () => {
             paymentMethod: PaymentMethod.CREDIT_CARD,
         };
 
-        repositoryMock.save.mockResolvedValue({
+        repositoryMock.register.mockResolvedValue({
             id: '1',
             cpf: dto.cpf,
             amount: dto.amount,
@@ -104,7 +104,7 @@ describe('CreatePaymentUseCase', () => {
             paymentMethod: PaymentMethod.PIX,
         };
 
-        repositoryMock.save.mockRejectedValue(new Error('Persistence Error'));
+        repositoryMock.register.mockRejectedValue(new Error('Persistence Error'));
 
         await expect(useCase.execute(dto)).rejects.toThrow();
     });

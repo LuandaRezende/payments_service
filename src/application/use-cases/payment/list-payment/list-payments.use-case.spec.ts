@@ -6,18 +6,18 @@ describe('ListPaymentsUseCase', () => {
   let repositoryMock: any;
 
   beforeEach(() => {
-    repositoryMock = { search: jest.fn().mockResolvedValue([{ id: '1', amount: 100 }]) };
+    repositoryMock = { findByFilters: jest.fn().mockResolvedValue([{ id: '1', amount: 100 }]) };
     useCase = new ListPaymentsUseCase(repositoryMock);
   });
 
 
   it('should list payments without filters', async () => {
-    repositoryMock.search.mockResolvedValue([{ id: '1' }, { id: '2' }]);
+    repositoryMock.findByFilters.mockResolvedValue([{ id: '1' }, { id: '2' }]);
 
     const result = await useCase.execute({});
 
     expect(result).toHaveLength(2);
-    expect(repositoryMock.search).toHaveBeenCalledWith({});
+    expect(repositoryMock.findByFilters).toHaveBeenCalledWith({});
   });
 
   it('should apply CPF and Status filters correctly', async () => {
@@ -27,15 +27,15 @@ describe('ListPaymentsUseCase', () => {
       method: PaymentMethod.CREDIT_CARD
     };
 
-    repositoryMock.search.mockResolvedValue([]);
+    repositoryMock.findByFilters.mockResolvedValue([]);
 
     await useCase.execute(filters);
 
-    expect(repositoryMock.search).toHaveBeenCalledWith(filters);
+    expect(repositoryMock.findByFilters).toHaveBeenCalledWith(filters);
   });
 
   it('should return an empty array when there are no results', async () => {
-    repositoryMock.search.mockResolvedValue([]);
+    repositoryMock.findByFilters.mockResolvedValue([]);
 
     const result = await useCase.execute({ cpf: '000' });
 

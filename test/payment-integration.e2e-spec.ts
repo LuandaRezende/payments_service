@@ -5,6 +5,8 @@ import { AppModule } from '../src/app.module';
 import { CreatePaymentUseCase } from '../src/application/use-cases/payment/create-payment/create-payment.use-case';
 import { ListPaymentsUseCase } from '../src/application/use-cases/payment/list-payment/list-payments.use-case';
 import { UpdateStatusUseCase } from '../src/application/use-cases/payment/update-status/update-status.use-case';
+import { GetPaymentByIdUseCase } from '../src/application/use-cases/payment/get-payment/get-payment-by-id.use-case';
+import { DeletePaymentUseCase } from '../src/application/use-cases/payment/delete-payment/delete-payment.use-case';
 
 describe('PaymentController (e2e)', () => {
   let app: INestApplication;
@@ -33,6 +35,14 @@ describe('PaymentController (e2e)', () => {
           status: 'PAID',
         }),
       })
+      .overrideProvider(GetPaymentByIdUseCase)
+      .useValue({
+        execute: jest.fn().mockResolvedValue({ id: 'payment-123', status: 'PENDING' }),
+      })
+      .overrideProvider(DeletePaymentUseCase)
+      .useValue({
+        execute: jest.fn().mockResolvedValue(undefined),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -43,9 +53,9 @@ describe('PaymentController (e2e)', () => {
     await app.close();
   });
 
-  it('POST /api/payments - cria pagamento', async () => {
+  it('POST /api/payment - cria pagamento', async () => {
     const response = await request(app.getHttpServer())
-      .post('/api/payments')
+      .post('/api/payment')
       .send({
         amount: 100,
         description: 'Pagamento teste',
@@ -58,31 +68,31 @@ describe('PaymentController (e2e)', () => {
     expect(response.body).toHaveProperty('status', 'PENDING');
   });
 
-  it('GET /api/payments - lista pagamentos', async () => {
+  it('GET /api/payment - lista pagamentos', async () => {
     const response = await request(app.getHttpServer())
-      .get('/api/payments');
+      .get('/api/payment');
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
   });
 
-  it('PATCH /api/payments/:id/status - atualiza status', async () => {
+  it('POST /api/payment/webhook - recebe webhook', async () => {
     const response = await request(app.getHttpServer())
-      .patch('/api/payments/payment-123/status')
-      .send({ status: 'PAID' });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty('status', 'PAID');
-  });
-
-  it('POST /api/payments/webhook - recebe webhook', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/payments/webhook?topic=payment')
+      .post('/api/payment/webhook?topic=payment')
       .send({
         data: { id: 'payment-123' },
       });
 
     expect(response.status).toBe(201);
     expect(response.body).toEqual({ received: true });
+  });
+
+  it('DELETE /api/payment/:id - remove pagamento', async () => {
+    const validUuid = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+
+    const response = await request(app.getHttpServer())
+      .delete(`/api/payment/${validUuid}`);
+
+    expect(response.status).toBe(204);
   });
 });

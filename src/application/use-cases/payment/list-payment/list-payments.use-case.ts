@@ -10,6 +10,6 @@ export class ListPaymentsUseCase {
   ) {}
 
   async execute(filters: { cpf?: string; method?: PaymentMethod; status?: PaymentStatus }) {
-    return await this.paymentRepository.search(filters);
+    return await this.paymentRepository.findByFilters(filters);
   }
 }

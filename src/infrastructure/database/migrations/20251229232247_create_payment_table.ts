@@ -8,7 +8,6 @@ export async function up(knex: Knex): Promise<void> {
     table.decimal('amount', 14, 2).notNullable();
     table.string('payment_method').notNullable();
     table.string('status').notNullable();
-    table.timestamp('created_at').defaultTo(knex.fn.now());
   });
 }
 

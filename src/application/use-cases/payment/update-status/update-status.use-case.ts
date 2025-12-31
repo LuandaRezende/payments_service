@@ -15,25 +15,20 @@ export class UpdateStatusUseCase {
     let internalId: string = id;
 
     if (manualStatus) {
-      // No fluxo manual, validamos se o pagamento existe antes de atualizar
       const payment = await this.paymentRepository.findById(id);
       if (!payment) throw new NotFoundException('Pagamento não encontrado');
       newStatus = manualStatus;
     } else {
-      // No fluxo do Webhook (id é o ID do Mercado Pago)
       const mpPayment = await this.paymentProvider.getPaymentDetails(id);
       
-      // Mapeamento robusto de status
       newStatus = this.mapStatus(mpPayment.status);
       
-      // O MP retorna o nosso ID no campo external_reference
       const payment = await this.paymentRepository.findById(mpPayment.external_reference);
       if (!payment) throw new NotFoundException('Pagamento referente ao Mercado Pago não encontrado');
       
       internalId = payment.id;
     }
 
-    // Evita updates desnecessários se o status for o mesmo
     await this.paymentRepository.updateStatus(internalId, newStatus);
     
     return { id: internalId, status: newStatus };

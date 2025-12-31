@@ -5,6 +5,10 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './infrastructure/common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './infrastructure/common/interceptors/logging.interceptor';
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 

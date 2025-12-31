@@ -11,30 +11,34 @@ export class CreatePaymentUseCase {
 
     @Inject('PaymentProvider')
     private readonly paymentProvider: PaymentProvider,
-  ) {}
+  ) { }
 
   async execute(dto: any) {
-    if (!dto.paymentMethod) {
-      throw new BadRequestException('Payment method is required');
+    try {
+      if (!dto.paymentMethod) {
+        throw new BadRequestException('Payment method is required');
+      }
+
+      const payment = Payment.create(dto);
+
+      const savedPayment = await this.repository.register(payment);
+
+      if (
+        savedPayment.paymentMethod === PaymentMethod.CREDIT_CARD ||
+        savedPayment.paymentMethod === PaymentMethod.PIX
+      ) {
+        const preference = await this.paymentProvider.createPreference(savedPayment);
+
+        return {
+          ...savedPayment,
+          checkoutUrl: preference.init_point,
+          external_reference: preference.external_reference,
+        };
+      }
+
+      return savedPayment;
+    } catch (error) {
+      throw new BadRequestException(error.message);
     }
-
-    const payment = Payment.create(dto);
-
-    const savedPayment = await this.repository.save(payment);
-
-    if (
-      savedPayment.paymentMethod === PaymentMethod.CREDIT_CARD ||
-      savedPayment.paymentMethod === PaymentMethod.PIX
-    ) {
-      const preference = await this.paymentProvider.createPreference(savedPayment);
-
-      return {
-        ...savedPayment,
-        checkoutUrl: preference.init_point,
-        external_reference: preference.external_reference,
-      };
-    }
-
-    return savedPayment;
   }
 }
