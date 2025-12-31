@@ -14,6 +14,8 @@ export class CreatePaymentUseCase {
   ) { }
 
   async execute(dto: any) {
+    const trx = await this.repository.startTransaction();
+
     try {
       if (!dto.paymentMethod) {
         throw new BadRequestException('Payment method is required');
@@ -21,13 +23,15 @@ export class CreatePaymentUseCase {
 
       const payment = Payment.create(dto);
 
-      const savedPayment = await this.repository.register(payment);
+      const savedPayment = await this.repository.register(payment, trx);
 
       if (
         savedPayment.paymentMethod === PaymentMethod.CREDIT_CARD ||
         savedPayment.paymentMethod === PaymentMethod.PIX
       ) {
         const preference = await this.paymentProvider.createPreference(savedPayment);
+
+        await trx.commit();
 
         return {
           ...savedPayment,
@@ -36,9 +40,12 @@ export class CreatePaymentUseCase {
         };
       }
 
+      await trx.commit();
       return savedPayment;
+
     } catch (error) {
-      throw new BadRequestException(error.message);
+      await trx.rollback();
+      throw new BadRequestException(`Payment creation failed: ${error.message}`);
     }
   }
 }

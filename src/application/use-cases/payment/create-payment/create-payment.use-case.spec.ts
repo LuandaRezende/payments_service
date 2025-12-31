@@ -7,15 +7,22 @@ describe('CreatePaymentUseCase', () => {
 
     let repositoryMock: {
         register: jest.Mock;
+        startTransaction: jest.Mock;
     };
 
     let paymentProviderMock: {
         createPreference: jest.Mock;
     };
 
+    const mockTrx = {
+        commit: jest.fn().mockResolvedValue(undefined),
+        rollback: jest.fn().mockResolvedValue(undefined),
+    };
+
     beforeEach(() => {
         repositoryMock = {
             register: jest.fn(),
+            startTransaction: jest.fn().mockResolvedValue(mockTrx),
         };
 
         paymentProviderMock = {
