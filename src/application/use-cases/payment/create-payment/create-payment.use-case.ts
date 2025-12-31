@@ -2,6 +2,8 @@ import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { Payment, PaymentMethod, PaymentStatus } from '../../../../domain/entities/payment.entity';
 import type { PaymentProvider } from '../../../../domain/gateways/mercado-pago/payment-provider.interface';
 import type { IPaymentRepository } from '../../../../domain/repositories/payment.repository.interface';
+import { MercadoPagoErrorMapper } from 'src/infrastructure/gateways/mercado-pago/mercado-pago-error.mapper';
+import { PaymentProviderException } from 'src/domain/exceptions/payment-provider.exception';
 
 @Injectable()
 export class CreatePaymentUseCase {
@@ -45,6 +47,14 @@ export class CreatePaymentUseCase {
 
     } catch (error) {
       await trx.rollback();
+
+      const mpErrorCode = error.response?.cause?.[0]?.code || error.code;
+      
+      if (mpErrorCode) {
+        const translatedMessage = MercadoPagoErrorMapper.translate(mpErrorCode);
+        throw new PaymentProviderException(translatedMessage);
+      }
+
       throw new BadRequestException(`Payment creation failed: ${error.message}`);
     }
   }
