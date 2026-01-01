@@ -41,7 +41,16 @@ export class KnexPaymentRepository implements IPaymentRepository {
     }
 
     async updateStatus(id: string, status: PaymentStatus): Promise<void> {
-        await this.knex('payments').where({ id }).update({ status });
+        try {
+            const rowsAffected = await this.knex('payments')
+                .where({ id: id })
+                .update({
+                    status: status
+                });
+        } catch (error) {
+            console.error('Erro detalhado no Knex:', error);
+            throw error;
+        }
     }
 
     async remove(id: string): Promise<void> {
@@ -49,7 +58,15 @@ export class KnexPaymentRepository implements IPaymentRepository {
     }
 
     private mapToEntity(row: any): Payment {
-        return Payment.create(row);
+        return new Payment(
+            row.id,
+            row.cpf,
+            row.description,
+            row.amount,
+            row.payment_method,
+            row.status as PaymentStatus,
+            row.created_at
+        );
     }
 
     async startTransaction(): Promise<Knex.Transaction> {

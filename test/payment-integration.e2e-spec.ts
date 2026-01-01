@@ -84,7 +84,10 @@ describe('PaymentController (e2e)', () => {
       });
 
     expect(response.status).toBe(201);
-    expect(response.body).toEqual({ received: true });
+    expect(response.body).toEqual({
+      id: expect.any(String),
+      status: 'PAID'
+    });
   });
 
   it('DELETE /api/payment/:id - remove pagamento', async () => {

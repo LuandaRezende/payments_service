@@ -2,8 +2,8 @@ import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { Payment, PaymentMethod, PaymentStatus } from '../../../../domain/entities/payment.entity';
 import type { PaymentProvider } from '../../../../domain/gateways/mercado-pago/payment-provider.interface';
 import type { IPaymentRepository } from '../../../../domain/repositories/payment.repository.interface';
-import { MercadoPagoErrorMapper } from 'src/infrastructure/gateways/mercado-pago/mercado-pago-error.mapper';
-import { PaymentProviderException } from 'src/domain/exceptions/payment-provider.exception';
+import { MercadoPagoErrorMapper } from '../../../../infrastructure/gateways/mercado-pago/mercado-pago-error.mapper';
+import { PaymentProviderException } from '../../../../domain/exceptions/payment-provider.exception';
 
 @Injectable()
 export class CreatePaymentUseCase {
@@ -24,7 +24,6 @@ export class CreatePaymentUseCase {
       }
 
       const payment = Payment.create(dto);
-
       const savedPayment = await this.repository.register(payment, trx);
 
       if (
@@ -33,12 +32,16 @@ export class CreatePaymentUseCase {
       ) {
         const preference = await this.paymentProvider.createPreference(savedPayment);
 
+        if (!preference || !preference.init_point) {
+          throw new Error('Invalid response from payment provider');
+        }
+
         await trx.commit();
 
         return {
           ...savedPayment,
           checkoutUrl: preference.init_point,
-          external_reference: preference.external_reference,
+          externalReference: savedPayment.id,
         };
       }
 
@@ -48,14 +51,14 @@ export class CreatePaymentUseCase {
     } catch (error) {
       await trx.rollback();
 
-      const mpErrorCode = error.response?.cause?.[0]?.code || error.code;
-      
-      if (mpErrorCode) {
-        const translatedMessage = MercadoPagoErrorMapper.translate(mpErrorCode);
-        throw new PaymentProviderException(translatedMessage);
+      if (error instanceof BadRequestException) {
+        throw error;
       }
 
-      throw new BadRequestException(`Payment creation failed: ${error.message}`);
+      const mpErrorCode = error.response?.cause?.[0]?.code || error.code;
+
+      const translatedMessage = MercadoPagoErrorMapper.map(mpErrorCode);
+      throw new PaymentProviderException(translatedMessage);
     }
   }
 }

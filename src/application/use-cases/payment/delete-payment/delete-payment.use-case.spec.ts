@@ -13,18 +13,24 @@ describe('DeletePaymentUseCase', () => {
     useCase = new DeletePaymentUseCase(repository);
   });
 
-  it('deve remover um pagamento com sucesso', async () => {
-    repository.findById.mockResolvedValue({ id: '1' });
-    repository.remove.mockResolvedValue(undefined);
+  describe('Execute Payment Deletion', () => {
+    it('should successfully remove a payment record when a valid and existing ID is provided', async () => {
+      const paymentId = '1';
+      repository.findById.mockResolvedValue({ id: paymentId });
+      repository.remove.mockResolvedValue(undefined);
 
-    await expect(useCase.execute('1')).resolves.not.toThrow();
-    expect(repository.remove).toHaveBeenCalledWith('1');
-  });
+      await expect(useCase.execute(paymentId)).resolves.not.toThrow();
+      expect(repository.findById).toHaveBeenCalledWith(paymentId);
+      expect(repository.remove).toHaveBeenCalledWith(paymentId);
+    });
 
-  it('deve lançar erro se o pagamento não existir', async () => {
-    repository.findById.mockResolvedValue(null);
+    it('should throw a NotFoundException and prevent removal if no payment record is found for the given ID', async () => {
+      const invalidId = 'non-existent-id';
+      repository.findById.mockResolvedValue(null);
 
-    await expect(useCase.execute('invalid-id')).rejects.toThrow(NotFoundException);
-    expect(repository.remove).not.toHaveBeenCalled();
+      await expect(useCase.execute(invalidId)).rejects.toThrow(NotFoundException);
+      expect(repository.findById).toHaveBeenCalledWith(invalidId);
+      expect(repository.remove).not.toHaveBeenCalled();
+    });
   });
 });

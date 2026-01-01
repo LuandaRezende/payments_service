@@ -12,17 +12,32 @@ describe('GetPaymentByIdUseCase', () => {
     useCase = new GetPaymentByIdUseCase(repository);
   });
 
-  it('deve retornar um pagamento quando encontrado', async () => {
-    const payment = { id: '1', amount: 100 };
-    repository.findById.mockResolvedValue(payment);
+  describe('Fetch Payment Details', () => {
+    it('should accurately retrieve and return the payment domain entity when a valid unique identifier is provided', async () => {
+      const mockPayment = { 
+        id: '1', 
+        amount: 100, 
+        cpf: '12345678901', 
+        status: 'PENDING' 
+      };
+      repository.findById.mockResolvedValue(mockPayment);
 
-    const result = await useCase.execute('1');
-    expect(result).toEqual(payment);
-  });
+      const result = await useCase.execute('1');
 
-  it('deve lançar NotFoundException quando não encontrado', async () => {
-    repository.findById.mockResolvedValue(null);
+      expect(result).toEqual(mockPayment);
+      expect(repository.findById).toHaveBeenLastCalledWith('1');
+      expect(repository.findById).toHaveBeenCalledTimes(1);
+    });
 
-    await expect(useCase.execute('1')).rejects.toThrow(NotFoundException);
+    it('should enforce data integrity by throwing a NotFoundException if the requested ID has no corresponding record in the persistence layer', async () => {
+      const nonExistentId = 'non-existent-id';
+      repository.findById.mockResolvedValue(null);
+
+      await expect(useCase.execute(nonExistentId))
+        .rejects
+        .toThrow(NotFoundException);
+        
+      expect(repository.findById).toHaveBeenCalledWith(nonExistentId);
+    });
   });
 });

@@ -9,7 +9,7 @@ export class ListPaymentsUseCase {
     private readonly paymentRepository: IPaymentRepository,
   ) {}
 
-  async execute(filters: { cpf?: string; method?: PaymentMethod; status?: PaymentStatus }) {
+  async execute(filters: { cpf?: string; method?: PaymentMethod}) {
     return await this.paymentRepository.findByFilters(filters);
   }
 }

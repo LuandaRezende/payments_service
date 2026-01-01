@@ -19,8 +19,7 @@ export class UpdateStatusUseCase {
       if (!payment) throw new NotFoundException('Pagamento não encontrado');
       newStatus = manualStatus;
     } else {
-      const mpPayment = await this.paymentProvider.getPaymentDetails(id);
-      
+      const mpPayment = await this.paymentProvider.getPaymentDetails(id);      
       newStatus = this.mapStatus(mpPayment.status);
       
       const payment = await this.paymentRepository.findById(mpPayment.external_reference);

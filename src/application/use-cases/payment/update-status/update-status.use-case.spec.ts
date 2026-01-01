@@ -18,114 +18,130 @@ describe('UpdateStatusUseCase', () => {
         useCase = new UpdateStatusUseCase(repositoryMock, paymentProviderMock);
     });
 
-    it('should successfully update the status manually', async () => {
-        const id = 'existing-id';
-        const status = PaymentStatus.PAID;
+    describe('Manual Status Update', () => {
+        it('should successfully update the payment state when a valid ID and new status are provided', async () => {
+            const id = 'existing-id';
+            const status = PaymentStatus.PAID;
 
-        repositoryMock.findById.mockResolvedValue({
-            id: id,
-            status: PaymentStatus.PENDING,
-            cpf: '12345678909',
-            amount: 150.50,
+            repositoryMock.findById.mockResolvedValue({
+                id: id,
+                status: PaymentStatus.PENDING,
+                cpf: '12345678909',
+                amount: 150.50,
+            });
+
+            const result = await useCase.execute(id, status);
+
+            expect(repositoryMock.findById).toHaveBeenCalledWith(id);
+            expect(repositoryMock.updateStatus).toHaveBeenCalledWith(id, status);
+            expect(result.status).toBe(status);
+            expect(result.id).toBe(id);
         });
 
-        const result = await useCase.execute(id, status);
+        it('should throw NotFoundException when attempting to update a non-existent payment record', async () => {
+            repositoryMock.findById.mockResolvedValue(null);
 
-        expect(repositoryMock.findById).toHaveBeenCalledWith(id);
-        expect(repositoryMock.updateStatus).toHaveBeenCalledWith(id, status);
-        expect(result.status).toBe(status);
-        expect(result.id).toBe(id);
-    });
-
-    it('should update status via webhook and check if payment exists', async () => {
-        const externalId = 'mp-123';
-
-        paymentProviderMock.getPaymentDetails.mockResolvedValue({
-            status: 'approved',
-            external_reference: 'internal-id',
+            await expect(useCase.execute('invalid-id', PaymentStatus.PAID))
+                .rejects
+                .toThrow(NotFoundException);
         });
-
-        repositoryMock.findById.mockResolvedValue(null);
-
-        await expect(
-            useCase.execute(externalId)
-        ).rejects.toThrow(NotFoundException);
     });
 
-    it('should update status to PAID when Mercado Pago approves', async () => {
-        const externalId = 'mp-123';
-
-        paymentProviderMock.getPaymentDetails.mockResolvedValue({
-            status: 'approved',
-            external_reference: 'internal-id',
-        });
-
-        repositoryMock.findById.mockResolvedValue({ id: 'internal-id' });
-
-        await useCase.execute(externalId);
-
-        expect(repositoryMock.updateStatus).toHaveBeenCalledWith('internal-id', PaymentStatus.PAID);
-    });
-
-    it('should throw NotFoundException when payment does not exist', async () => {
-        repositoryMock.findById.mockResolvedValue(null);
-
-        await expect(useCase.execute('invalid-id', PaymentStatus.PAID))
-            .rejects
-            .toThrow(NotFoundException);
-    });
-
-    describe('mapStatus and Webhook Branching', () => {
+    describe('Webhook Integration & Status Mapping', () => {
         const internalId = 'internal-id';
-        const mpId = 'mp-123456';
+        const mpId = 'mp-123';
 
-        beforeEach(() => {
-            repositoryMock.findById.mockResolvedValue({ id: internalId, status: PaymentStatus.PENDING });
+        it('should throw NotFoundException when the external provider reference does not match any local record', async () => {
+            paymentProviderMock.getPaymentDetails.mockResolvedValue({
+                status: 'approved',
+                external_reference: 'internal-id',
+            });
+
+            repositoryMock.findById.mockResolvedValue(null);
+
+            await expect(useCase.execute(mpId)).rejects.toThrow(NotFoundException);
         });
 
-        it('should map "rejected" to PaymentStatus.FAIL', async () => {
+        it('should transition payment state to PAID when the external provider confirms approval', async () => {
+            paymentProviderMock.getPaymentDetails.mockResolvedValue({
+                status: 'approved',
+                external_reference: internalId,
+            });
+
+            repositoryMock.findById.mockResolvedValue({ id: internalId });
+
+            await useCase.execute(mpId);
+
+            expect(repositoryMock.updateStatus).toHaveBeenCalledWith(internalId, PaymentStatus.PAID);
+        });
+
+        it('should transition payment state to FAIL when the transaction is rejected by the provider', async () => {
             paymentProviderMock.getPaymentDetails.mockResolvedValue({
                 status: 'rejected',
                 external_reference: internalId,
             });
 
+            repositoryMock.findById.mockResolvedValue({ id: internalId, status: PaymentStatus.PENDING });
+
             const result = await useCase.execute(mpId);
+            
             expect(result.status).toBe(PaymentStatus.FAIL);
         });
 
-        it('should map "cancelled" to PaymentStatus.FAIL', async () => {
+        it('should transition payment state to FAIL when the transaction is cancelled by the provider', async () => {
             paymentProviderMock.getPaymentDetails.mockResolvedValue({
                 status: 'cancelled',
                 external_reference: internalId,
             });
 
+            repositoryMock.findById.mockResolvedValue({ id: internalId, status: PaymentStatus.PENDING });
+
             const result = await useCase.execute(mpId);
+
             expect(result.status).toBe(PaymentStatus.FAIL);
         });
 
-        it('should map "in_process" to PaymentStatus.PENDING', async () => {
+        it('should maintain PENDING state when the provider reports the transaction as in_process', async () => {
             paymentProviderMock.getPaymentDetails.mockResolvedValue({
                 status: 'in_process',
                 external_reference: internalId,
             });
 
+            repositoryMock.findById.mockResolvedValue({ id: internalId, status: PaymentStatus.PENDING });
+
             const result = await useCase.execute(mpId);
+
             expect(result.status).toBe(PaymentStatus.PENDING);
         });
 
-        it('should map any unknown status to PaymentStatus.PENDING (default branch)', async () => {
+        it('should maintain PENDING state as a safe fallback when receiving an unknown status from the provider', async () => {
             paymentProviderMock.getPaymentDetails.mockResolvedValue({
                 status: 'unknown_status_from_mp',
                 external_reference: internalId,
             });
 
+            repositoryMock.findById.mockResolvedValue({ id: internalId, status: PaymentStatus.PENDING });
+
             const result = await useCase.execute(mpId);
+
             expect(result.status).toBe(PaymentStatus.PENDING);
         });
 
-        it('should throw InternalServerError when an unexpected error occurs', async () => {
-            const id = 'any-id';
+        it('should explicitly map "pending" provider status to internal PENDING state', async () => {
+            paymentProviderMock.getPaymentDetails.mockResolvedValue({
+                status: 'pending',
+                external_reference: internalId,
+            });
+            repositoryMock.findById.mockResolvedValue({ id: internalId });
+            const result = await useCase.execute(mpId);
 
+            expect(result.status).toBe(PaymentStatus.PENDING);
+        });
+    });
+
+    describe('Fault Tolerance & Error Handling', () => {
+        it('should propagate generic errors when the persistence layer fails to retrieve a record', async () => {
+            const id = 'any-id';
             repositoryMock.findById.mockRejectedValue(new Error('Unexpected Database Crash'));
 
             await expect(useCase.execute(id, PaymentStatus.PAID))
@@ -133,14 +149,9 @@ describe('UpdateStatusUseCase', () => {
                 .toThrow();
         });
 
-        it('should throw an error when an unexpected error occurs during update', async () => {
+        it('should throw an error and interrupt the flow if the status update persistence fails', async () => {
             const id = 'any-id';
-
-            repositoryMock.findById.mockResolvedValue({
-                id,
-                status: PaymentStatus.PENDING
-            });
-
+            repositoryMock.findById.mockResolvedValue({ id, status: PaymentStatus.PENDING });
             repositoryMock.updateStatus.mockRejectedValue(new Error('Database failure'));
 
             await expect(useCase.execute(id, PaymentStatus.PAID))
@@ -148,8 +159,7 @@ describe('UpdateStatusUseCase', () => {
                 .toThrow('Database failure');
         });
 
-        it('should return the correct object after a successful webhook update', async () => {
-            const mpId = 'mp-123';
+        it('should return a consistent data transfer object after a successful asynchronous webhook update', async () => {
             const internalId = 'internal-uuid';
 
             paymentProviderMock.getPaymentDetails.mockResolvedValue({
@@ -162,34 +172,10 @@ describe('UpdateStatusUseCase', () => {
                 status: PaymentStatus.PENDING
             });
 
-            const result = await useCase.execute(mpId);
+            const result = await useCase.execute('mp-123');
 
             expect(result).toEqual({ id: internalId, status: PaymentStatus.PAID });
             expect(repositoryMock.updateStatus).toHaveBeenCalledWith(internalId, PaymentStatus.PAID);
         });
-    });
-
-    it('should map "pending" to PaymentStatus.PENDING', async () => {
-        const mpId = 'mp-123';
-        const internalId = 'internal-id';
-        paymentProviderMock.getPaymentDetails.mockResolvedValue({
-            status: 'pending',
-            external_reference: internalId,
-        });
-        repositoryMock.findById.mockResolvedValue({ id: internalId });
-
-        const result = await useCase.execute(mpId);
-        expect(result.status).toBe(PaymentStatus.PENDING);
-    });
-
-    it('should throw an error if updateStatus fails (final branch)', async () => {
-        const id = 'any-id';
-        repositoryMock.findById.mockResolvedValue({ id, status: PaymentStatus.PENDING });
-
-        repositoryMock.updateStatus.mockRejectedValue(new Error('Final operation failed'));
-
-        await expect(useCase.execute(id, PaymentStatus.PAID))
-            .rejects
-            .toThrow('Final operation failed');
     });
 });

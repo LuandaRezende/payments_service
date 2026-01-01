@@ -32,9 +32,8 @@ export class PaymentController {
     async findAll(
         @Query('cpf') cpf?: string,
         @Query('method') method?: PaymentMethod,
-        @Query('status') status?: PaymentStatus,
     ) {
-        return await this.listUseCase.execute({ cpf, method, status });
+        return await this.listUseCase.execute({ cpf, method });
     }
 
     @Put(':id')
@@ -52,14 +51,19 @@ export class PaymentController {
     }
 
     @Post('webhook')
-    async handleWebhook(@Body() body: any, @Query('topic') topic: string) {
-        const resourceId = body.data?.id || body.id;
-        const actualTopic = topic || body.type;
+    async handleWebhook(@Body() body: any, @Query() query: any) {
+        const type = body.type || body.topic || query.topic;
+        const paymentId = body.data?.id || query.id;
 
-        if (actualTopic === 'payment') {
-            await this.updateStatusUseCase.execute(resourceId);
+        if (type !== 'payment') {
+            return { status: 'ignored' };
         }
 
-        return { received: true };
+        if (!paymentId) {
+            console.error('Webhook de pagamento sem ID recebido');
+            return { status: 'error', message: 'No ID found' };
+        }
+
+        return await this.updateStatusUseCase.execute(String(paymentId));
     }
 }
