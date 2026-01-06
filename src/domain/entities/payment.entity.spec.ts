@@ -4,58 +4,81 @@ import { cpf as cpfValidator } from 'cpf-cnpj-validator';
 jest.mock('cpf-cnpj-validator', () => ({
     cpf: {
         isValid: jest.fn(),
-        strip: jest.fn((val) => val.replace(/[^\d]/g, '')),
+        strip: jest.fn((val: string) => val.replace(/[^\d]/g, '')),
     },
 }));
 
-describe('Payment Entity', () => {
-    const validProps = {
-        cpf: '12345678901',
-        description: 'Pedido de Teste',
-        amount: 100.0,
+describe('Domain unit test payment entity', () => {
+    const validPaymentProps = {
+        cpf: '45013098653',
+        description: 'standard test purchase',
+        amount: 150.0,
         paymentMethod: PaymentMethod.PIX,
     };
+
+    const mockedValidator = cpfValidator as jest.Mocked<typeof cpfValidator>;
 
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    it('should create a valid payment and strip CPF formatting', () => {
-        (cpfValidator.isValid as jest.Mock).mockReturnValue(true);
+    describe('Creation logic success scenarios', () => {
+        it('should successfully instantiate a payment entity with sanitized CPF and default status', () => {
+            mockedValidator.isValid.mockReturnValue(true);
 
-        const payment = Payment.create({
-            ...validProps,
-            cpf: '123.456.789-01',
+            const payment = Payment.create({
+                ...validPaymentProps,
+                cpf: '450.130.986-53',
+            });
+
+            expect(payment.id).toBeDefined();
+            expect(payment.cpf).toBe('45013098653');
+            expect(payment.status).toBe(PaymentStatus.PENDING);
+            expect(payment.amount).toBe(150.0);
         });
 
-        expect(payment.id).toBeDefined();
-        expect(payment.cpf).toBe('12345678901');
-        expect(payment.status).toBe(PaymentStatus.PENDING);
+        it('should ensure distinct UUID generation for concurrent instances (Identity Invariant)', () => {
+            mockedValidator.isValid.mockReturnValue(true);
+
+            const instanceOne = Payment.create(validPaymentProps);
+            const instanceTwo = Payment.create(validPaymentProps);
+
+            expect(instanceOne.id).not.toEqual(instanceTwo.id);
+        });
     });
 
-    it('should throw error if amount is zero or negative', () => {
-        expect(() => {
-            Payment.create({ ...validProps, amount: 0 });
-        }).toThrow('O valor do pagamento deve ser maior que zero');
-    });
+    describe('Domain validation invariants', () => {
+        it('should reject non-positive amounts (Zero or Negative values)', () => {
+            const expectedError = 'Payment amount must be greater than zero';
 
-    it('should throw error if CPF is invalid', () => {
-        (cpfValidator.isValid as jest.Mock).mockReturnValue(false);
+            expect(() => {
+                Payment.create({ ...validPaymentProps, amount: 0 });
+            }).toThrow(expectedError);
 
-        expect(() => {
-            Payment.create({ ...validProps });
-        }).toThrow('CPF informado é inválido');
-    });
+            expect(() => {
+                Payment.create({ ...validPaymentProps, amount: -1 });
+            }).toThrow(expectedError);
+        });
 
-    it('should throw error if description is empty', () => {
-        (cpfValidator.isValid as jest.Mock).mockReturnValue(true);
+        it('should throw a domain exception when the CPF validator returns false', () => {
+            mockedValidator.isValid.mockReturnValue(false);
 
-        expect(() => {
-            Payment.create({ ...validProps, description: '' });
-        }).toThrow('A descrição é obrigatória');
+            expect(() => {
+                Payment.create(validPaymentProps);
+            }).toThrow('The provided CPF is invalid');
+        });
 
-        expect(() => {
-            Payment.create({ ...validProps, description: '   ' });
-        }).toThrow('A descrição é obrigatória');
+        it('should reject empty or purely whitespace strings as payment descriptions', () => {
+            mockedValidator.isValid.mockReturnValue(true);
+            const expectedError = 'Description is required and cannot be empty';
+
+            expect(() => {
+                Payment.create({ ...validPaymentProps, description: '' });
+            }).toThrow(expectedError);
+
+            expect(() => {
+                Payment.create({ ...validPaymentProps, description: '   ' });
+            }).toThrow(expectedError);
+        });
     });
 });

@@ -8,32 +8,35 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start": "cross-env NODE_ENV=production nest start",
+    "start:dev": "cross-env NODE_ENV=development nest start --watch",
+    "start:debug": "cross-env NODE_ENV=development nest start --debug --watch",
+    "start:prod": "cross-env NODE_ENV=production node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:unit": "jest",
-    "test:e2e": "cross-env NODE_ENV=test jest --config ./test/jest-e2e.json",
-    "test:all": "npm run test:unit && npm run test:int",
-    "pretest:int": "cross-env NODE_ENV=test npx knex migrate:latest --env test --knexfile src/infrastructure/database/knexfile.ts",
-    "db:migrate": "knex migrate:latest --knexfile knexfile.ts",
-    "db:rollback": "knex migrate:rollback --knexfile knexfile.ts",
-    "db:seed": "knex seed:run --knexfile knexfile.ts",
-    "migration:run": "npx knex migrate:latest --knexfile src/infrastructure/database/knexfile.ts",
-    "migration:rollback": "npx knex migrate:rollback --knexfile src/infrastructure/database/knexfile.ts",
+    "test": "cross-env NODE_ENV=development jest",
+    "test:watch": "cross-env NODE_ENV=development jest --watch",
+    "test:cov": "cross-env NODE_ENV=development jest --coverage",
+    "test:debug": "cross-env NODE_ENV=development node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:unit": "cross-env NODE_ENV=development jest",
+    "test:e2e": "cross-env NODE_ENV=development jest --config ./test/jest-e2e.json",
+    "test:all": "npm run test:unit && npm run test:e2e",
+    "pretest:int": "cross-env NODE_ENV=development npx knex migrate:latest --env test --knexfile src/infrastructure/database/knexfile.ts",
+    "migration:run": "cross-env NODE_ENV=development npx knex migrate:latest --knexfile src/infrastructure/database/knexfile.ts --env development",
+    "migration:rollback": "cross-env NODE_ENV=development npx knex migrate:rollback --knexfile src/infrastructure/database/knexfile.ts --env development",
     "migration:make": "npx knex migrate:make --knexfile src/infrastructure/database/knexfile.ts -x ts",
-    "migration:status": "npx knex migrate:list --knexfile src/infrastructure/database/knexfile.ts"
+    "migration:status": "npx knex migrate:list --knexfile src/infrastructure/database/knexfile.ts",
+    "db:seed": "cross-env NODE_ENV=development knex seed:run --knexfile src/infrastructure/database/knexfile.ts --env development",
+    "worker:temporal": "cross-env NODE_ENV=development ts-node src/infrastructure/temporal/worker.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@temporalio/activity": "^1.14.0",
+    "@temporalio/client": "^1.14.0",
+    "@temporalio/worker": "^1.14.0",
+    "@temporalio/workflow": "^1.14.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "cpf-cnpj-validator": "^1.0.3",
@@ -53,6 +56,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@temporalio/testing": "^1.14.0",
     "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
@@ -86,6 +90,7 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "coverageProvider": "v8",
     "collectCoverageFrom": [
       "src/application/use-cases/**/*.ts",
       "src/domain/entities/**/*.ts",
@@ -96,6 +101,17 @@
       "!src/presentation/controllers/**/*.ts",
       "!src/application/use-cases/**/index.ts"
     ],
+    "coveragePathIgnorePatterns": [
+      ".entity.ts",
+      ".interface.ts",
+      "node_modules"
+    ],
+    "sourceMap": true,
+    "instrumenterOptions": {
+      "istanbul": {
+        "no-compact": true
+      }
+    },
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {

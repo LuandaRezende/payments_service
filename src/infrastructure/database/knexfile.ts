@@ -1,39 +1,37 @@
-import type { Knex } from 'knex';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
-const config: { [key: string]: Knex.Config } = {
+const config = {
   development: {
-    client: 'postgresql',
+    client: 'pg',
     connection: {
-      host: process.env.DB_HOST || 'localhost',
-      database: process.env.DB_NAME || 'payments_service_db',
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: Number(process.env.DB_PORT) || 5432,
       user: process.env.DB_USER || 'user',
       password: process.env.DB_PASSWORD || 'pass',
-      port: Number(process.env.DB_PORT) || 5432,
+      database: process.env.DB_NAME || 'payments_service_db',
     },
-    migrations: {
-      directory: './migrations',
-      extension: 'ts',
-    },
+    migrations: { directory: './migrations', extension: 'ts' },
   },
-
   test: {
-    client: 'postgresql',
+    client: 'pg',
     connection: {
-      host: process.env.DB_HOST || 'localhost',
-      database: process.env.DB_NAME || 'payments_service_db',
-      user: process.env.DB_USER || 'user',
-      password: process.env.DB_PASSWORD || 'pass',
-      port: Number(process.env.DB_PORT) || 5432,
+      host: '127.0.0.1',
+      port: 5432,
+      user: 'user',
+      password: 'pass',
+      database: 'payments_test_db',
     },
-    migrations: {
-      directory: './migrations',
-      extension: 'ts',
-    },
+    migrations: { directory: './migrations', extension: 'ts' },
   },
+  production: {
+    client: 'pg',
+    connection: process.env.DATABASE_URL,
+    migrations: { directory: './dist/migrations' },
+  }
 };
 
 export default config;
+module.exports = config;

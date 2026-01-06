@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Preference, Payment, MercadoPagoConfig } from 'mercadopago';
 import { PaymentProvider } from '../../../domain/gateways/mercado-pago/payment-provider.interface';
+import { MercadoPagoErrorMapper } from './mercado-pago-error.mapper';
 
 @Injectable()
 export class MercadoPagoGateway implements PaymentProvider {
@@ -9,7 +10,7 @@ export class MercadoPagoGateway implements PaymentProvider {
     constructor() {
         const token = process.env.TOKEN_MERCADO_PAGO;
         if (!token) {
-            throw new Error('TOKEN_MERCADO_PAGO não definido');
+            throw new Error('TOKEN_MERCADO_PAGO is not defined in environment variables');
         }
         this.client = new MercadoPagoConfig({ accessToken: token });
     }
@@ -21,7 +22,7 @@ export class MercadoPagoGateway implements PaymentProvider {
                 body: {
                     items: [{
                         id: payment.id,
-                        title: payment.description || 'Pedido',
+                        title: payment.description || 'Order',
                         unit_price: payment.amount,
                         quantity: 1,
                     }],
@@ -31,7 +32,7 @@ export class MercadoPagoGateway implements PaymentProvider {
             });
 
             if (!result.init_point || !result.external_reference) {
-                throw new Error('Resposta incompleta do Mercado Pago');
+                throw new Error('Incomplete response received from Mercado Pago gateway');
             }
 
             return {
@@ -39,7 +40,7 @@ export class MercadoPagoGateway implements PaymentProvider {
                 external_reference: result.external_reference,
             };
         } catch (error) {
-            throw new InternalServerErrorException('Erro ao criar preferência de pagamento');
+            throw MercadoPagoErrorMapper.toDomainError(error);
         }
     }
 
@@ -54,6 +55,17 @@ export class MercadoPagoGateway implements PaymentProvider {
             };
         } catch (error) {
             return { status: 'fail', external_reference: '' };
+        }
+    }
+
+    async getStatus(externalId: string): Promise<any> {
+        try {
+            const response = await this.getPaymentDetails(externalId);
+
+            return response.status;
+        } catch (error) {
+            console.error('[MercadoPagoGateway] Error fetching payment status:', error);
+            throw new Error('Communication failure with the payment provider');
         }
     }
 }

@@ -7,15 +7,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private instance: Knex;
 
   constructor() {
-    const envConfig = process.env.NODE_ENV === 'test' ? config.test : config.development;
+    const env = process.env.NODE_ENV || 'development';
+    const envConfig = (config as any)[env];
+
+    if (!envConfig) {
+      throw new Error(`Knex configuration for environment "${env}" not found in knexfile.ts`);
+    }
+
     this.instance = knex(envConfig);
   }
 
-  onModuleInit() {
+  async onModuleInit() {
+    try {
+      await this.instance.raw('SELECT 1');
+    } catch (error) {
+      console.error('Database connection failed:', error);
+    }
   }
 
-  onModuleDestroy() {
-    return this.instance.destroy();
+  async onModuleDestroy() {
+    await this.instance.destroy();
   }
 
   getKnex(): Knex {
