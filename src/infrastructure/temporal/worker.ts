@@ -10,6 +10,7 @@ async function run() {
   const worker = await Worker.create({
     workflowsPath: require.resolve('../../application/workflows/payment.workflow'),
     activities: {
+      createExternalPreference: activities.createExternalPreference.bind(activities),
       syncPaymentStatusWithGateway: activities.syncPaymentStatusWithGateway.bind(activities),
       markPaymentAsFailed: activities.markPaymentAsFailed.bind(activities),
     },

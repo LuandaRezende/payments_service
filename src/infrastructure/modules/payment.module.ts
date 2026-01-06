@@ -57,7 +57,8 @@ import { PaymentActivities } from '../temporal/activities/activities';
         GetPaymentByIdUseCase,
         DeletePaymentUseCase,
         PaymentActivities,
-        'TEMPORAL_CONNECTION'
+        'TEMPORAL_CONNECTION',
+        'TEMPORAL_CLIENT'
     ],
 })
 export class PaymentModule { }

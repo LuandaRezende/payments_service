@@ -18,26 +18,31 @@ export class MercadoPagoGateway implements PaymentProvider {
     async createPreference(payment: any): Promise<{ init_point: string; external_reference: string }> {
         try {
             const preference = new Preference(this.client);
+            const expirationDate = new Date();
+            expirationDate.setHours(expirationDate.getHours() + 24);
+
             const result = await preference.create({
                 body: {
                     items: [{
                         id: payment.id,
                         title: payment.description || 'Order',
-                        unit_price: payment.amount,
+                        unit_price: Number(payment.amount),
                         quantity: 1,
                     }],
                     external_reference: payment.id,
                     notification_url: process.env.WEBHOOK_URL,
+                    expires: true,
+                    expiration_date_to: expirationDate.toISOString(),
                 },
             });
 
-            if (!result.init_point || !result.external_reference) {
+            if (!result.init_point || !result.id) {
                 throw new Error('Incomplete response received from Mercado Pago gateway');
             }
 
             return {
                 init_point: result.init_point,
-                external_reference: result.external_reference,
+                external_reference: result.id,
             };
         } catch (error) {
             throw MercadoPagoErrorMapper.toDomainError(error);
@@ -46,15 +51,15 @@ export class MercadoPagoGateway implements PaymentProvider {
 
     async getPaymentDetails(externalId: string): Promise<{ status: string; external_reference: string }> {
         try {
-            const payment = new Payment(this.client);
-            const result = await payment.get({ id: externalId });
+            const preference = new Preference(this.client);
+            const result = await preference.get({ preferenceId: externalId });
 
             return {
-                status: result.status || 'fail',
+                status: 'PENDING',
                 external_reference: result.external_reference || '',
             };
         } catch (error) {
-            return { status: 'fail', external_reference: '' };
+            throw new Error('Não foi possível validar o recurso no Mercado Pago.');
         }
     }
 
@@ -66,6 +71,21 @@ export class MercadoPagoGateway implements PaymentProvider {
         } catch (error) {
             console.error('[MercadoPagoGateway] Error fetching payment status:', error);
             throw new Error('Communication failure with the payment provider');
+        }
+    }
+
+    async getRealPaymentStatus(paymentId: string): Promise<{ status: string; external_reference: string }> {
+        try {
+            const payment = new Payment(this.client);
+            const result = await payment.get({ id: paymentId });
+
+            return {
+                status: result.status || 'unknown',
+                external_reference: result.external_reference || '',
+            };
+        } catch (error) {
+            console.error('Erro ao buscar pagamento real no MP:', error);
+            throw new Error('Pagamento não encontrado no provedor.');
         }
     }
 }

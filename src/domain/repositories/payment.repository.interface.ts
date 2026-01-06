@@ -7,4 +7,5 @@ export interface IPaymentRepository {
   findByFilters(filters: { cpf?: string; method?: PaymentMethod }): Promise<Payment[]>;
   remove(id: string): Promise<void>;
   startTransaction(): Promise<any>;
+  updateExternalId(id: string, externalId: string): Promise<void>;
 }

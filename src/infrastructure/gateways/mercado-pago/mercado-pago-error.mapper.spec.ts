@@ -26,8 +26,8 @@ describe('Unit Test: MercadoPagoErrorMapper', () => {
             ['cc_rejected_bad_filled_security_code', /Invalid security code CVV./i],
             ['cc_rejected_insufficient_amount', /Insufficient funds available on the card./i],
             ['cc_rejected_call_for_authorize', /Payment was declined by the issuing bank. Please contact them./i],
-            ['500', /Internal server error at the payment gateway (Mercado Pago)./i],
-            ['internal_server_error', /Internal server error at the payment gateway (Mercado Pago)./i],
+            ['500', /Internal server error at the payment gateway Mercado Pago./i],
+            ['internal_server_error', /Internal server error at the payment gateway Mercado Pago./i],
             ['default_case', /An unexpected error occurred within the payment provider service./i],
         ])('should map gateway code "%s" to the expected localized regex pattern', (code, regex) => {
             expect(MercadoPagoErrorMapper.map(code)).toMatch(regex);

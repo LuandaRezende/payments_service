@@ -30,13 +30,19 @@ export class CreatePaymentUseCase {
 
       await trx.commit();
 
+      console.log('Use Case: Aguardando resultado do Workflow...');
+      const result = await handle.result();
+      console.log('Use Case: Resultado recebido do Workflow:', result);
+
+
       return {
         ...savedPayment,
         workflowId: handle.workflowId,
         status: 'PROCESSING',
+        checkoutUrl: result?.url || 'URL_NAO_GERADA',
       };
     } catch (error) {
-      await trx.rollback();
+      if (trx) await trx.rollback();
       throw error;
     }
   }

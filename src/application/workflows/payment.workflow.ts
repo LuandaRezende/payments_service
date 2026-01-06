@@ -1,25 +1,31 @@
 import { proxyActivities } from '@temporalio/workflow';
-import { PaymentActivities } from '../../infrastructure/temporal/activities/activities';
+import type { PaymentActivities } from '../../infrastructure/temporal/activities/activities';
 
 const {
+  createExternalPreference,
   syncPaymentStatusWithGateway,
   markPaymentAsFailed
 } = proxyActivities<PaymentActivities>({
   startToCloseTimeout: '1 minute',
-  retry: {
-    initialInterval: '1s',
-    backoffCoefficient: 2,
-    maximumAttempts: 5,
-  },
 });
 
-export async function processPaymentWorkflow(paymentData: any): Promise<void> {
-  if (paymentData.paymentMethod === 'CREDIT_CARD' || paymentData.paymentMethod === 'PIX') {
-    try {
-      await syncPaymentStatusWithGateway(paymentData.id);
-    } catch (error) {
-      await markPaymentAsFailed(paymentData.id);
-      throw error;
+export async function processPaymentWorkflow(paymentData: any): Promise<{ url: string }> {
+  try {
+    if (paymentData.paymentMethod === 'CREDIT_CARD') {
+
+      const { id: externalId, url } = await createExternalPreference(paymentData.id);
+      await syncPaymentStatusWithGateway(paymentData.id, externalId);
+      return { url };
     }
+
+    if (paymentData.paymentMethod === 'PIX') {
+      return { url: '' };
+    }
+
+    return { url: '' };
+
+  } catch (error) {
+    await markPaymentAsFailed(paymentData.id);
+    throw error;
   }
 }
