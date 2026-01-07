@@ -1,9 +1,11 @@
-// src/domain/repositories/payment.repository.interface.ts
 import { Payment, PaymentStatus, PaymentMethod } from '../entities/payment.entity';
 
 export interface IPaymentRepository {
-  save(payment: Payment): Promise<void>;
+  register(payment: Payment, trx?: any): Promise<Payment>;
   findById(id: string): Promise<Payment | null>;
   updateStatus(id: string, status: PaymentStatus): Promise<void>;
-  search(filters: { cpf?: string; method?: PaymentMethod, status?: PaymentStatus }): Promise<Payment[]>;
+  findByFilters(filters: { cpf?: string; method?: PaymentMethod }): Promise<Payment[]>;
+  remove(id: string): Promise<void>;
+  startTransaction(): Promise<any>;
+  updateExternalId(id: string, externalId: string): Promise<void>;
 }

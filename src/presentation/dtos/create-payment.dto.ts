@@ -1,22 +1,38 @@
-import { IsString, IsNumber, IsEnum, IsNotEmpty, Length } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsNumber, IsPositive, IsString, Matches } from 'class-validator';
 import { PaymentMethod } from '../../domain/entities/payment.entity';
 
 export class CreatePaymentDto {
-  @IsString()
+  @ApiProperty({
+    description: 'Customer CPF (Tax ID)',
+    example: '12345678901',
+  })
   @IsNotEmpty()
-  @Length(11, 11, { message: 'CPF deve ter exatamente 11 dígitos' })
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'CPF must contain exactly 11 digits' })
   cpf: string;
 
-  @IsString()
+  @ApiProperty({
+    description: 'Brief description of the financial transaction',
+    example: 'Tech Test Payment',
+  })
   @IsNotEmpty()
+  @IsString()
   description: string;
 
+  @ApiProperty({
+    description: 'Transaction amount (must be positive)',
+    example: 150.50,
+  })
   @IsNumber()
-  @IsNotEmpty()
+  @IsPositive({ message: 'The payment amount must be greater than zero' })
   amount: number;
 
-  @IsEnum(PaymentMethod, {
-    message: 'Método de pagamento deve ser PIX ou CREDIT_CARD',
+  @ApiProperty({
+    description: 'Chosen payment method',
+    enum: PaymentMethod,
+    example: PaymentMethod.CREDIT_CARD,
   })
+  @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
 }
