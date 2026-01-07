@@ -1,7 +1,11 @@
-import { Worker } from '@temporalio/worker';
+import { Worker, Runtime, DefaultLogger } from '@temporalio/worker';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../../app.module';
 import { PaymentActivities } from './activities/activities';
+
+Runtime.install({
+  logger: new DefaultLogger('ERROR'),
+});
 
 async function run() {
   const app = await NestFactory.createApplicationContext(AppModule);

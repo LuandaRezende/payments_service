@@ -13,11 +13,11 @@
     "start:debug": "cross-env NODE_ENV=development nest start --debug --watch",
     "start:prod": "cross-env NODE_ENV=production node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "cross-env NODE_ENV=development jest",
+    "test": "cross-env TEMPORAL_LOG_LEVEL=ERROR jest --coverage",
     "test:watch": "cross-env NODE_ENV=development jest --watch",
-    "test:cov": "cross-env NODE_ENV=development jest --coverage",
+    "test:cov": "cross-env TEMPORAL_LOG_LEVEL=ERROR jest --coverage",
     "test:debug": "cross-env NODE_ENV=development node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:unit": "cross-env NODE_ENV=development jest",
+    "test:unit": "cross-env TEMPORAL_LOG_LEVEL=ERROR jest",
     "test:e2e": "cross-env NODE_ENV=development jest --config ./test/jest-e2e.json",
     "test:all": "npm run test:unit && npm run test:e2e",
     "pretest:int": "cross-env NODE_ENV=development npx knex migrate:latest --env test --knexfile src/infrastructure/database/knexfile.ts",
@@ -87,6 +87,7 @@
       "json",
       "ts"
     ],
+    "setupFilesAfterEnv": ["<rootDir>/jest-setup.ts"],
     "rootDir": ".",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
@@ -108,12 +109,6 @@
       ".interface.ts",
       "node_modules"
     ],
-    "sourceMap": true,
-    "instrumenterOptions": {
-      "istanbul": {
-        "no-compact": true
-      }
-    },
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {

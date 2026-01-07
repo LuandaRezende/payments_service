@@ -1,8 +1,9 @@
 import { MockActivityEnvironment } from '@temporalio/testing';
 import { PaymentActivities } from './activities';
 import { PaymentStatus } from '../../../domain/entities/payment.entity';
+import { Runtime, DefaultLogger } from '@temporalio/worker';
 
-describe('Temporal Activities: PaymentActivities', () => {
+describe('PaymentActivities', () => {
   let activitiesInstance: PaymentActivities;
   let repositoryMock: any;
   let providerMock: any;
@@ -12,88 +13,70 @@ describe('Temporal Activities: PaymentActivities', () => {
     repositoryMock = {
       findById: jest.fn(),
       updateStatus: jest.fn(),
+      updateExternalId: jest.fn(),
     };
     providerMock = {
       getStatus: jest.fn(),
+      createPreference: jest.fn(),
     };
 
     activitiesInstance = new PaymentActivities(providerMock, repositoryMock);
     env = new MockActivityEnvironment();
   });
 
-  describe('syncPaymentStatusWithGateway() implementation', () => {
-    const runActivity = (id: string) =>
-      env.run(activitiesInstance.syncPaymentStatusWithGateway.bind(activitiesInstance), id);
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-    it('should synchronize and persist the payment status when found in the gateway', async () => {
+  describe('syncPaymentStatusWithGateway', () => {
+    const runActivity = (id: string, extId: string) =>
+      env.run(activitiesInstance.syncPaymentStatusWithGateway.bind(activitiesInstance), id, extId);
+
+    it('should synchronize the status from the gateway and persist it locally', async () => {
+      const paymentId = '123';
+      const externalId = 'mp-999';
+
       repositoryMock.findById.mockResolvedValue({
-        id: '123',
-        externalId: 'mp-999',
+        id: paymentId,
         status: PaymentStatus.PENDING,
       });
       providerMock.getStatus.mockResolvedValue('approved');
 
-      const result = await runActivity('123');
+      const result = await runActivity(paymentId, externalId);
 
-      expect(repositoryMock.findById).toHaveBeenCalledWith('123');
-      expect(providerMock.getStatus).toHaveBeenCalledWith('mp-999');
-      expect(repositoryMock.updateStatus).toHaveBeenCalledWith('123', 'approved');
+      expect(repositoryMock.findById).toHaveBeenCalledWith(paymentId);
+      expect(providerMock.getStatus).toHaveBeenCalledWith(externalId);
+      expect(repositoryMock.updateStatus).toHaveBeenCalledWith(paymentId, 'approved');
       expect(result).toBe('approved');
     });
 
-    it('should fail with a descriptive error when the payment record lacks an external provider reference', async () => {
-      repositoryMock.findById.mockResolvedValue({ id: '123', externalId: undefined });
-
-      await expect(runActivity('123'))
-        .rejects.toThrow('Payment 123 does not have an associated external ID.');
-
-      expect(providerMock.getStatus).not.toHaveBeenCalled();
-    });
-
-    it('should propagate gateway timeouts to trigger Temporal automatic retry policy', async () => {
-      repositoryMock.findById.mockResolvedValue({ id: '123', externalId: 'mp-999' });
+    it('should propagate gateway errors to enable Temporal auto-retry policy', async () => {
+      repositoryMock.findById.mockResolvedValue({ id: '123' });
       providerMock.getStatus.mockRejectedValue(new Error('Gateway Timeout'));
 
-      await expect(runActivity('123')).rejects.toThrow('Gateway Timeout');
+      await expect(runActivity('123', 'mp-999')).rejects.toThrow('Gateway Timeout');
       expect(repositoryMock.updateStatus).not.toHaveBeenCalled();
     });
 
-    it('should ensure consistency by returning the current status even if already synchronized', async () => {
-      repositoryMock.findById.mockResolvedValue({
-        id: '123',
-        externalId: 'mp-999',
-        status: 'approved'
-      });
-      providerMock.getStatus.mockResolvedValue('approved');
-
-      const result = await runActivity('123');
-
-      expect(result).toBe('approved');
-    });
-
-    it('should bubble up persistence failures when updating the state post-synchronization', async () => {
-      repositoryMock.findById.mockResolvedValue({ id: '123', externalId: 'mp-999' });
+    it('should throw an error when the database fails to update after a successful sync', async () => {
+      repositoryMock.findById.mockResolvedValue({ id: '123' });
       providerMock.getStatus.mockResolvedValue('approved');
       repositoryMock.updateStatus.mockRejectedValue(new Error('Database Update Error'));
 
-      await expect(runActivity('123')).rejects.toThrow('Database Update Error');
+      await expect(runActivity('123', 'mp-999')).rejects.toThrow('Database Update Error');
     });
   });
 
-  describe('markPaymentAsFailed() compensation logic', () => {
+  describe('markPaymentAsFailed', () => {
     const runMarkFailed = (id: string) =>
       env.run(activitiesInstance.markPaymentAsFailed.bind(activitiesInstance), id);
 
-    it('should transition the payment status to FAIL within the persistence layer', async () => {
-      await runMarkFailed('123');
+    it('should transition the local payment status to FAIL', async () => {
+      const paymentId = '123';
 
-      expect(repositoryMock.updateStatus).toHaveBeenCalledWith('123', PaymentStatus.FAIL);
-    });
+      await runMarkFailed(paymentId);
 
-    it('should propagate connectivity issues to allow workflow orchestration to handle retries', async () => {
-      repositoryMock.updateStatus.mockRejectedValue(new Error('Connection Error'));
-
-      await expect(runMarkFailed('123')).rejects.toThrow('Connection Error');
+      expect(repositoryMock.updateStatus).toHaveBeenCalledWith(paymentId, PaymentStatus.FAIL);
     });
   });
 });

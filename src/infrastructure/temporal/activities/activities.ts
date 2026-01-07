@@ -13,32 +13,31 @@ export class PaymentActivities {
   ) { }
 
   async createExternalPreference(paymentId: string): Promise<{ id: string; url: string }> {
-  const payment = await this.repository.findById(paymentId);
-  if (!payment) throw new Error('Pagamento não encontrado');
+    const payment = await this.repository.findById(paymentId);
+    if (!payment) throw new Error('Pagamento não encontrado');
 
-  const result = await this.paymentProvider.createPreference({
-    id: payment.id,
-    description: payment.description,
-    amount: payment.amount,
-  });
+    const result = await this.paymentProvider.createPreference({
+      id: payment.id,
+      description: payment.description,
+      amount: payment.amount,
+    });
 
-  await this.repository.updateExternalId(paymentId, result.external_reference);
+    await this.repository.updateExternalId(paymentId, result.external_reference);
 
-  return { 
-    id: result.external_reference, 
-    url: result.init_point 
-  };
-}
+    return {
+      id: result.external_reference,
+      url: result.init_point
+    };
+  }
 
-
-async syncPaymentStatusWithGateway(paymentId: string, externalId: string): Promise<any> {
+  async syncPaymentStatusWithGateway(paymentId: string, externalId: string): Promise<any> {
     const payment = await this.repository.findById(paymentId);
     if (!payment) throw new Error(`Pagamento ${paymentId} não encontrado no banco.`);
     const status = await this.paymentProvider.getStatus(externalId);
-    
+
     await this.repository.updateStatus(paymentId, status);
     return status;
-}
+  }
 
   async markPaymentAsFailed(paymentId: string): Promise<void> {
     this.logger.error(`Marking payment ${paymentId} as FAILED due to workflow interruption or error.`);

@@ -10,13 +10,13 @@ export class UpdateStatusUseCase {
     @Inject('PaymentRepository') private readonly paymentRepository: IPaymentRepository,
     @Inject('PaymentProvider') private readonly paymentProvider: PaymentProvider,
     @Inject('TEMPORAL_CLIENT') private readonly client: Client,
-  ) { }
+  ) {}
 
   async execute(id: string, manualStatus?: PaymentStatus) {
     let newStatus: PaymentStatus;
     let internalId: string = id;
 
-    if (manualStatus) {
+    if (manualStatus !== null && manualStatus !== undefined) {
       const payment = await this.paymentRepository.findById(id);
       if (!payment) throw new NotFoundException('Pagamento não encontrado');
       newStatus = manualStatus;
@@ -66,3 +66,4 @@ export class UpdateStatusUseCase {
     }
   }
 }
+

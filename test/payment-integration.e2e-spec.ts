@@ -53,49 +53,58 @@ describe('PaymentController (e2e)', () => {
     await app.close();
   });
 
-  it('POST /api/payment - cria pagamento', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/payment')
-      .send({
-        amount: 100,
-        description: 'Pagamento teste',
-        cpf: '12345678900',
-        method: 'PIX',
-      });
+  describe('POST /api/payment', () => {
+    it('should initialize a new payment and return 201 Created', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/payment')
+        .send({
+          amount: 100,
+          description: 'E2E Test Payment',
+          cpf: '12345678900',
+          method: 'PIX',
+        });
 
-    expect(response.status).toBe(201);
-    expect(response.body).toHaveProperty('init_point');
-    expect(response.body).toHaveProperty('status', 'PENDING');
-  });
-
-  it('GET /api/payment - lista pagamentos', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/api/payment');
-
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
-
-  it('POST /api/payment/webhook - recebe webhook', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/payment/webhook?topic=payment')
-      .send({
-        data: { id: 'payment-123' },
-      });
-
-    expect(response.status).toBe(201);
-    expect(response.body).toEqual({
-      id: expect.any(String),
-      status: 'PAID'
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('init_point');
+      expect(response.body).toHaveProperty('status', 'PENDING');
     });
   });
 
-  it('DELETE /api/payment/:id - remove pagamento', async () => {
-    const validUuid = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+  describe('GET /api/payment', () => {
+    it('should retrieve a list of payments and return 200 OK', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/payment');
 
-    const response = await request(app.getHttpServer())
-      .delete(`/api/payment/${validUuid}`);
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
+    });
+  });
 
-    expect(response.status).toBe(204);
+  describe('POST /api/payment/webhook', () => {
+    it('should process gateway notifications and return 200 OK', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/payment/webhook?topic=payment')
+        .send({
+          data: { id: 'payment-123' },
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        id: expect.any(String),
+        status: 'PAID'
+      });
+    });
+  });
+
+  describe('DELETE /api/payment/:id', () => {
+    it('should remove a payment record and return 204 No Content', async () => {
+      const validUuid = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+
+      const response = await request(app.getHttpServer())
+        .delete(`/api/payment/${validUuid}`);
+
+      expect(response.status).toBe(204);
+      expect(response.body).toEqual({});
+    });
   });
 });

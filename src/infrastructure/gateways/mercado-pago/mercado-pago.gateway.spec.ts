@@ -1,99 +1,128 @@
 import { MercadoPagoGateway } from './mercado-pago.gateway';
 import { Preference, Payment } from 'mercadopago';
+import { MercadoPagoErrorMapper } from './mercado-pago-error.mapper';
 
 jest.mock('mercadopago');
+jest.mock('./mercado-pago-error.mapper');
 
-describe('Integration test MercadoPagoGateway', () => {
+describe('MercadoPagoGateway', () => {
     let gateway: MercadoPagoGateway;
     const MOCK_TOKEN = 'test-token';
 
     beforeEach(() => {
         process.env.TOKEN_MERCADO_PAGO = MOCK_TOKEN;
-        gateway = new MercadoPagoGateway();
+        process.env.WEBHOOK_URL = 'https://webhook.test';
+
         jest.clearAllMocks();
+        gateway = new MercadoPagoGateway();
+
         jest.spyOn(console, 'error').mockImplementation(() => { });
     });
 
-    describe('Initialization logic', () => {
-        it('should throw a configuration error if TOKEN_MERCADO_PAGO is missing', () => {
-            delete process.env.TOKEN_MERCADO_PAGO;
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
 
-            expect(() => new MercadoPagoGateway()).toThrow('TOKEN_MERCADO_PAGO is not defined in environment variables');
+    describe('Initialization', () => {
+        it('should throw an error if TOKEN_MERCADO_PAGO is not provided in environment variables', () => {
+            delete process.env.TOKEN_MERCADO_PAGO;
+            expect(() => new MercadoPagoGateway()).toThrow('TOKEN_MERCADO_PAGO is not defined');
         });
     });
 
-    describe('createPreference() method', () => {
-        it('should successfully create a checkout preference and return the initialization point', async () => {
-            const mockResponse = { init_point: 'https://checkout.mercadopago.com', external_reference: 'order-123' };
+    describe('createPreference', () => {
+        it('should successfully generate a checkout link (Happy Path)', async () => {
+            const mockResponse = { init_point: 'http://link.com', id: 'pref-123' };
             (Preference.prototype.create as jest.Mock).mockResolvedValue(mockResponse);
 
-            const result = await gateway.createPreference({ id: 'order-123', amount: 100 });
+            const result = await gateway.createPreference({ id: '123', amount: 100 });
 
-            expect(result.init_point).toBe(mockResponse.init_point);
-            expect(Preference.prototype.create).toHaveBeenCalled();
+            expect(result.init_point).toBe('http://link.com');
+            expect(result.external_reference).toBe('pref-123');
         });
 
-        it('should reject the promise when the provider returns an incomplete or malformed payload', async () => {
+        it('should reject when the SDK returns an incomplete or invalid response', async () => {
             (Preference.prototype.create as jest.Mock).mockResolvedValue({ init_point: null });
+            (MercadoPagoErrorMapper.toDomainError as jest.Mock).mockReturnValue(new Error('Incomplete data'));
 
             await expect(gateway.createPreference({})).rejects.toThrow();
         });
 
-        it('should propagate a high-level exception when the SDK library fails to communicate', async () => {
-            (Preference.prototype.create as jest.Mock).mockRejectedValue(new Error('Network Timeout'));
+        it('should map SDK-specific errors to domain-friendly errors using ErrorMapper', async () => {
+            (Preference.prototype.create as jest.Mock).mockRejectedValue(new Error('Low level SDK failure'));
+            (MercadoPagoErrorMapper.toDomainError as jest.Mock).mockReturnValue(new Error('Mapped Domain Error'));
 
-            await expect(gateway.createPreference({})).rejects.toThrow();
+            await expect(gateway.createPreference({})).rejects.toThrow('Mapped Domain Error');
         });
     });
 
-    describe('getPaymentDetails() method', () => {
-        it('should fetch and return payment metadata correctly for a valid transaction ID', async () => {
-            const mockPayment = { status: 'approved', external_reference: 'order-123' };
-            (Payment.prototype.get as jest.Mock).mockResolvedValue(mockPayment);
+    describe('getPaymentDetails', () => {
+        it('should retrieve payment details and default to PENDING status', async () => {
+            (Preference.prototype.get as jest.Mock).mockResolvedValue({ external_reference: 'ref-123' });
 
-            const result = await gateway.getPaymentDetails('pay-789');
-
-            expect(result.status).toBe('approved');
-            expect(result.external_reference).toBe('order-123');
+            const result = await gateway.getPaymentDetails('id');
+            expect(result.status).toBe('PENDING');
+            expect(result.external_reference).toBe('ref-123');
         });
 
-        it('should apply resilient default values when status or reference are missing in the response', async () => {
+        it('should return an empty string if the external reference is missing in the preference', async () => {
+            (Preference.prototype.get as jest.Mock).mockResolvedValue({ external_reference: null });
+
+            const result = await gateway.getPaymentDetails('id');
+            expect(result.external_reference).toBe('');
+        });
+
+        it('should throw a custom error message when the SDK fails to retrieve preference details', async () => {
+            (Preference.prototype.get as jest.Mock).mockRejectedValue(new Error());
+            await expect(gateway.getPaymentDetails('id'))
+                .rejects.toThrow('Não foi possível validar o recurso no Mercado Pago.');
+        });
+    });
+
+    describe('getStatus', () => {
+        it('should successfully fetch and return the generic payment status', async () => {
+            jest.spyOn(gateway, 'getPaymentDetails').mockResolvedValue({ status: 'SUCCESS', external_reference: 'ref' });
+            expect(await gateway.getStatus('id')).toBe('SUCCESS');
+        });
+
+        it('should log the error and throw a communication failure exception upon SDK error', async () => {
+            jest.spyOn(gateway, 'getPaymentDetails').mockRejectedValue(new Error('Connection timeout'));
+            await expect(gateway.getStatus('id')).rejects.toThrow('Communication failure');
+            expect(console.error).toHaveBeenCalled();
+        });
+    });
+
+    describe('getRealPaymentStatus', () => {
+        it('should retrieve the actual payment status and reference from the Payment SDK', async () => {
+            (Payment.prototype.get as jest.Mock).mockResolvedValue({
+                status: 'approved',
+                external_reference: 'order-001'
+            });
+
+            const result = await gateway.getRealPaymentStatus('id');
+            expect(result.status).toBe('approved');
+            expect(result.external_reference).toBe('order-001');
+        });
+
+        it('should provide default values when the SDK returns null or undefined fields', async () => {
             (Payment.prototype.get as jest.Mock).mockResolvedValue({
                 status: null,
                 external_reference: undefined
             });
 
-            const result = await gateway.getPaymentDetails('pay-789');
+            const result = await gateway.getRealPaymentStatus('id');
 
-            expect(result.status).toBe('fail');
+            expect(result.status).toBe('unknown');
             expect(result.external_reference).toBe('');
         });
 
-        it('should return a failure status instead of crashing when the SDK internal call fails', async () => {
-            (Payment.prototype.get as jest.Mock).mockRejectedValue(new Error('Gateway Unreachable'));
+        it('should log a console error and throw a specialized exception when the payment is not found', async () => {
+            (Payment.prototype.get as jest.Mock).mockRejectedValue(new Error('Not Found'));
 
-            const result = await gateway.getPaymentDetails('pay-789');
+            await expect(gateway.getRealPaymentStatus('id'))
+                .rejects.toThrow('Pagamento não encontrado no provedor.');
 
-            expect(result.status).toBe('fail');
-        });
-    });
-
-    describe('getStatus() orchestration', () => {
-        it('should extract only the status string from the full payment details', async () => {
-            jest.spyOn(gateway, 'getPaymentDetails').mockResolvedValue({
-                status: 'pending',
-                external_reference: 'order-123'
-            });
-
-            const status = await gateway.getStatus('pay-789');
-
-            expect(status).toBe('pending');
-        });
-
-        it('should throw a localized domain error when the detail lookup fails critically', async () => {
-            jest.spyOn(gateway, 'getPaymentDetails').mockRejectedValue(new Error('Critical Infrastructure Failure'));
-
-            await expect(gateway.getStatus('pay-789')).rejects.toThrow('Communication failure with the payment provider');
+            expect(console.error).toHaveBeenCalled();
         });
     });
 });

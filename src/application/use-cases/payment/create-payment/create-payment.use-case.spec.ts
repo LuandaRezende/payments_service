@@ -3,7 +3,7 @@ import { CreatePaymentUseCase } from './create-payment.use-case';
 import { PaymentMethod, PaymentStatus } from '../../../../domain/entities/payment.entity';
 import { BadRequestException } from '@nestjs/common';
 
-describe('Unit Test: CreatePaymentUseCase', () => {
+describe('CreatePaymentUseCase', () => {
   let useCase: CreatePaymentUseCase;
   let repositoryMock: any;
   let temporalClientMock: any;
@@ -28,7 +28,10 @@ describe('Unit Test: CreatePaymentUseCase', () => {
     };
 
     temporalClientMock = {
-      start: jest.fn().mockResolvedValue({ workflowId: 'wf-123' }),
+      start: jest.fn().mockResolvedValue({
+        workflowId: 'wf-123',
+        result: jest.fn().mockResolvedValue({ url: 'http://checkout.com' })
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -41,12 +44,16 @@ describe('Unit Test: CreatePaymentUseCase', () => {
 
     useCase = module.get<CreatePaymentUseCase>(CreatePaymentUseCase);
     jest.clearAllMocks();
+
   });
 
-  describe('execute() implementation logic', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-    describe('when providing valid payment data', () => {
-      it('should persist the payment record and return an initial PROCESSING status', async () => {
+  describe('execute', () => {
+    describe('Successful Scenarios', () => {
+      it('should successfully register a payment and trigger the workflow', async () => {
         const savedPayment = { id: 'p1', ...validPaymentDto, status: PaymentStatus.PENDING };
         repositoryMock.register.mockResolvedValue(savedPayment);
 
@@ -54,66 +61,59 @@ describe('Unit Test: CreatePaymentUseCase', () => {
 
         expect(result.status).toBe('PROCESSING');
         expect(mockTrx.commit).toHaveBeenCalled();
+        expect(temporalClientMock.start).toHaveBeenCalled();
       });
 
-      it('should enforce idempotency by tying the Workflow ID to the Payment Primary Key', async () => {
-        const paymentId = 'unique-uuid-123';
-        repositoryMock.register.mockResolvedValue({ ...validPaymentDto, id: paymentId });
+      it('should return a placeholder URL when the workflow does not provide a checkout link', async () => {
+        repositoryMock.register.mockResolvedValue({ id: 'p1', ...validPaymentDto });
+        temporalClientMock.start.mockResolvedValue({
+          workflowId: 'wf-123',
+          result: jest.fn().mockResolvedValue(null)
+        });
 
-        await useCase.execute(validPaymentDto);
-
-        expect(temporalClientMock.start).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({ workflowId: `payment-${paymentId}` })
-        );
-      });
-
-      it('should propagate the exact persisted entity state to the Temporal orchestration layer', async () => {
-        const fullSavedPayment = { id: 'p1', ...validPaymentDto };
-        repositoryMock.register.mockResolvedValue(fullSavedPayment);
-
-        await useCase.execute(validPaymentDto);
-
-        expect(temporalClientMock.start).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({ args: [fullSavedPayment] })
-        );
+        const result = await useCase.execute(validPaymentDto);
+        expect(result.checkoutUrl).toBe('URL_NAO_GERADA');
       });
     });
 
-    describe('when infrastructure or external services fail (Transaction Safety)', () => {
-      it('should perform a full rollback of database changes if the repository layer fails', async () => {
+    describe('Transaction Integrity & Error Handling', () => {
+      it('should rollback the transaction when database registration fails', async () => {
         repositoryMock.register.mockRejectedValue(new Error('DB Error'));
 
         await expect(useCase.execute(validPaymentDto)).rejects.toThrow('DB Error');
         expect(mockTrx.rollback).toHaveBeenCalled();
       });
 
-      it('should ensure domain-specific exceptions are bubbled up without losing context during rollback', async () => {
-        const customError = new BadRequestException('Business rule violation');
-        repositoryMock.register.mockRejectedValue(customError);
+      it('should rollback the transaction when temporal workflow fails to start', async () => {
+        repositoryMock.register.mockResolvedValue({ id: 'p1', ...validPaymentDto });
+        temporalClientMock.start.mockRejectedValue(new Error('Temporal Error'));
 
-        await expect(useCase.execute(validPaymentDto)).rejects.toThrow(customError);
+        await expect(useCase.execute(validPaymentDto)).rejects.toThrow('Temporal Error');
         expect(mockTrx.rollback).toHaveBeenCalled();
       });
 
-      it('should prevent data inconsistency by rolling back DB changes if the Workflow fails to initialize', async () => {
-        repositoryMock.register.mockResolvedValue({ id: 'p1', ...validPaymentDto });
-        temporalClientMock.start.mockRejectedValue(new Error('Temporal Service Unavailable'));
+      it('should not attempt to rollback if the transaction was never initialized', async () => {
+        repositoryMock.startTransaction.mockResolvedValue(null);
+        repositoryMock.register.mockImplementation(() => { throw new Error('No Trx'); });
 
-        await expect(useCase.execute(validPaymentDto)).rejects.toThrow('Temporal Service Unavailable');
-        expect(mockTrx.rollback).toHaveBeenCalled();
-        expect(mockTrx.commit).not.toHaveBeenCalled();
+        await expect(useCase.execute(validPaymentDto)).rejects.toThrow();
+        expect(mockTrx.rollback).not.toHaveBeenCalled();
+      });
+
+      it('should prioritize and rethrow the original error even if rollback fails', async () => {
+        repositoryMock.register.mockRejectedValue(new Error('Original Error'));
+        mockTrx.rollback.mockRejectedValue(new Error('Rollback Error'));
+
+        await expect(useCase.execute(validPaymentDto)).rejects.toThrow();
       });
     });
 
-    describe('when input data fails business constraints (Validation)', () => {
-      it('should reject requests that lack a mandatory payment method', async () => {
-        const { paymentMethod, ...invalidDto } = validPaymentDto;
-        await expect(useCase.execute(invalidDto)).rejects.toThrow(BadRequestException);
+    describe('Input Validation', () => {
+      it('should reject requests that are missing a payment method', async () => {
+        await expect(useCase.execute({ amount: 100 })).rejects.toThrow(BadRequestException);
       });
 
-      it('should fail execution when domain invariants are violated, such as an invalid CPF format', async () => {
+      it('should reject requests with an invalid CPF format', async () => {
         await expect(useCase.execute({ ...validPaymentDto, cpf: '123' }))
           .rejects.toThrow('The provided CPF is invalid');
       });

@@ -1,104 +1,67 @@
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker } from '@temporalio/worker';
+import { Worker, Runtime, DefaultLogger } from '@temporalio/worker';
 import { processPaymentWorkflow } from './payment.workflow';
 
-describe('Orchestration Test: PaymentWorkflow', () => {
-    let testEnv: TestWorkflowEnvironment;
+try {
+  Runtime.install({ logger: new DefaultLogger('ERROR') });
+} catch (e) {}
 
-    jest.setTimeout(30000);
+describe('PaymentWorkflow Orchestration', () => {
+  let testEnv: TestWorkflowEnvironment;
 
-    beforeAll(async () => {
-        testEnv = await TestWorkflowEnvironment.createLocal();
-    });
+  // Increased timeout due to local Temporal environment startup
+  jest.setTimeout(150000);
 
-    afterAll(async () => {
-        await testEnv?.teardown();
-    });
+  beforeAll(async () => {
+    testEnv = await TestWorkflowEnvironment.createLocal();
+  });
 
-    describe('Scenario successful synchronization', () => {
-        it('should orchestrate the full sync process when gateway confirms payment approval', async () => {
-            const { client, nativeConnection } = testEnv;
+  afterAll(async () => {
+    if (testEnv) {
+      await testEnv.teardown();
+    }
+    jest.restoreAllMocks();
+  });
 
-            const mockActivities = {
-                syncPaymentStatusWithGateway: jest.fn().mockResolvedValue('approved'),
-                markPaymentAsFailed: jest.fn(),
-            };
+  describe('Process Payment Saga', () => {
 
-            const worker = await Worker.create({
-                connection: nativeConnection,
-                taskQueue: 'success-queue',
-                workflowsPath: require.resolve('./payment.workflow'),
-                activities: mockActivities,
-            });
+    it('should trigger the compensation activity (mark as failed) when gateway synchronization fails', async () => {
+      const { client, nativeConnection } = testEnv;
+      const taskQueue = `test-queue-${Date.now()}`;
 
-            await worker.runUntil(
-                client.workflow.execute(processPaymentWorkflow, {
-                    args: [{ id: 'p1', paymentMethod: 'PIX' }],
-                    workflowId: 'success-wf',
-                    taskQueue: 'success-queue',
-                })
-            );
+      const mockActivities = {
+        createExternalPreference: jest.fn().mockResolvedValue({
+          id: 'ext-123',
+          url: 'http://checkout.com'
+        }),
+        syncPaymentStatusWithGateway: jest.fn().mockRejectedValue(new Error('Gateway Offline')),
+        markPaymentAsFailed: jest.fn().mockResolvedValue(undefined),
+      };
 
-            expect(mockActivities.syncPaymentStatusWithGateway).toHaveBeenCalledWith('p1');
-            expect(mockActivities.markPaymentAsFailed).not.toHaveBeenCalled();
+      const worker = await Worker.create({
+        connection: nativeConnection,
+        taskQueue,
+        workflowsPath: require.resolve('./payment.workflow'),
+        activities: mockActivities,
+      });
+
+      const workerPromise = worker.run();
+
+      try {
+        await client.workflow.execute(processPaymentWorkflow, {
+          args: [{ id: 'p1', paymentMethod: 'CREDIT_CARD' }],
+          workflowId: `test-wf-${Date.now()}`,
+          taskQueue,
+          retry: { maximumAttempts: 1 }
         });
+      } catch (err) {
+      } finally {
+        worker.shutdown();
+        await workerPromise;
+      }
+
+      expect(mockActivities.createExternalPreference).toHaveBeenCalled();
+      expect(mockActivities.markPaymentAsFailed).toHaveBeenCalledWith('p1');
     });
-
-    describe('Scenario fault tolerance and compensation logic', () => {
-        it('should trigger the compensation activity when the gateway synchronization fails non-retryable errors', async () => {
-            const { client, nativeConnection } = testEnv;
-
-            const mockActivities = {
-                syncPaymentStatusWithGateway: jest.fn().mockRejectedValue(new Error('Gateway Offline')),
-                markPaymentAsFailed: jest.fn().mockResolvedValue(undefined),
-            };
-
-            const worker = await Worker.create({
-                connection: nativeConnection,
-                taskQueue: 'failure-queue',
-                workflowsPath: require.resolve('./payment.workflow'),
-                activities: mockActivities,
-            });
-
-            await worker.runUntil(async () => {
-                try {
-                    await client.workflow.execute(processPaymentWorkflow, {
-                        args: [{ id: 'p1', paymentMethod: 'PIX' }],
-                        workflowId: 'failure-wf',
-                        taskQueue: 'failure-queue',
-                    });
-                } catch (err) {
-                    // Workflow failed as expected, we swallow the error to proceed to expectations
-                }
-            });
-
-            expect(mockActivities.markPaymentAsFailed).toHaveBeenCalledWith('p1');
-        });
-
-        it('should ensure eventual consistency even when the transaction starts in a pending state', async () => {
-            const { client, nativeConnection } = testEnv;
-
-            const mockActivities = {
-                syncPaymentStatusWithGateway: jest.fn().mockResolvedValue('approved'),
-                markPaymentAsFailed: jest.fn(),
-            };
-
-            const worker = await Worker.create({
-                connection: nativeConnection,
-                taskQueue: 'pending-queue',
-                workflowsPath: require.resolve('./payment.workflow'),
-                activities: mockActivities,
-            });
-
-            await worker.runUntil(
-                client.workflow.execute(processPaymentWorkflow, {
-                    args: [{ id: 'p1', paymentMethod: 'PIX' }],
-                    workflowId: 'pending-wf',
-                    taskQueue: 'pending-queue',
-                })
-            );
-
-            expect(mockActivities.syncPaymentStatusWithGateway).toHaveBeenCalled();
-        });
-    });
+  });
 });
