@@ -6,7 +6,9 @@ import { UpdateStatusUseCase } from '../../application/use-cases/payment/update-
 import { GetPaymentByIdUseCase } from '../../application/use-cases/payment/get-payment/get-payment-by-id.use-case';
 import { DeletePaymentUseCase } from '../../application/use-cases/payment/delete-payment/delete-payment.use-case';
 import { CreatePaymentDto } from '../dtos/create-payment.dto';
-import { PaymentMethod, PaymentStatus } from '../../domain/entities/payment.entity';
+import { PaymentMethod } from '../../domain/entities/payment.entity';
+import { UpdatePaymentStatusDto } from 'src/application/use-cases/payment/update-status/update-payment-status.dto';
+import { ApiExcludeEndpoint } from '@nestjs/swagger';
 
 @ApiTags('Payments')
 @Controller('api/payment')
@@ -48,9 +50,9 @@ export class PaymentController {
     @ApiOperation({ summary: 'Manually update a payment lifecycle status' })
     async update(
         @Param('id') id: string,
-        @Body('status') status: PaymentStatus,
+        @Body() updateStatusDto: UpdatePaymentStatusDto,
     ) {
-        return await this.updateStatusUseCase.execute(id, status);
+        return await this.updateStatusUseCase.execute(id, updateStatusDto.status);
     }
 
     @Delete(':id')
@@ -64,6 +66,7 @@ export class PaymentController {
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Mercado Pago event notification listener' })
     @ApiResponse({ status: 200, description: 'Event processed successfully.' })
+    @ApiExcludeEndpoint()
     async handleWebhook(@Body() body: any, @Query() query: any) {
         const type = body.type || body.topic || query.topic;
         const gatewayId = body.data?.id || query.id;
