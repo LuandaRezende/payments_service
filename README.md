@@ -15,14 +15,12 @@
 </ul>
 
 <h2>Funcionalidades</h2>
-<h3>Backend (Payment Service)</h3>
 <ul>
   <li>Criação de intenções de pagamento</li>
   <li>Integração nativa com Mercado Pago</li>
   <li>Orquestração de status (Pendente, Pago, Falha) com Temporal</li>
   <li>Recebimento de notificações via Webhooks</li>
   <li>Atualização manual de status via API</li>
-  <li>Retentativas automáticas em caso de falhas de rede</li>
 </ul>
 
 <h2>Como executar o projeto</h2>
@@ -48,7 +46,7 @@ DB_HOST=localhost
 TOKEN_MERCADO_PAGO=APP_USR-4183516322848106-123019-d4a173bb50d2fa80389c0487f6a5227b-3102973327
 NODE_ENV=development
 TEMPORAL_ADDRESS=localhost:7233
-WEBHOOK_URL=https://SUA_URL_AQUI.ngrok-free.dev/api/payment/webhook</code></pre>
+WEBHOOK_URL=https://semirebelliously-burnoused-esperanza.ngrok-free.dev/api/payment/webhook</code></pre>
   </li>
 
   <li>
