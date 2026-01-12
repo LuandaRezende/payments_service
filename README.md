@@ -37,9 +37,9 @@ cd payments-service</code></pre>
   <li>
     <b>Configuração das Variáveis de Ambiente:</b>
     <br>Crie um arquivo <b>.env</b> na raiz do projeto. O campo <code>WEBHOOK_URL</code> deve ser atualizado após iniciar o Ngrok:
-    <pre><code>DATABASE_URL=postgres://user:pass@localhost:5432/payments_service_db
+    <pre><code>DATABASE_URL=postgres://user:pass@localhost:5432/payments_services_db
 PASSWORD=pass
-DB_NAME=payments_service_db
+DB_NAME=payments_services_db
 DB_USER=user
 DB_PORT=5432
 DB_HOST=localhost
